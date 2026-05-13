@@ -18,8 +18,34 @@ const restaurantSummaryInclude = {
     select: {
       menuCategories: true,
       menuItems: true,
+      ratings: true,
     },
   },
+  ratings: {
+    select: {
+      score: true,
+    },
+  },
+};
+
+const ratingSummary = (ratings = []) => {
+  if (!ratings.length) {
+    return { averageRating: null, ratingCount: 0 };
+  }
+
+  const total = ratings.reduce((sum, rating) => sum + rating.score, 0);
+  return {
+    averageRating: Math.round((total / ratings.length) * 10) / 10,
+    ratingCount: ratings.length,
+  };
+};
+
+const withRatingSummary = (restaurant) => {
+  const { ratings, ...rest } = restaurant;
+  return {
+    ...rest,
+    ...ratingSummary(ratings),
+  };
 };
 
 const getRestaurants = async (_req, res) => {
@@ -29,7 +55,7 @@ const getRestaurants = async (_req, res) => {
     orderBy: { createdAt: "desc" },
   });
 
-  res.json({ restaurants: serialize(restaurants) });
+  res.json({ restaurants: serialize(restaurants.map(withRatingSummary)) });
 };
 
 const getRestaurantById = async (req, res) => {
@@ -45,7 +71,7 @@ const getRestaurantById = async (req, res) => {
     throw new ApiError(404, "Restaurant not found");
   }
 
-  res.json({ restaurant: serialize(restaurant) });
+  res.json({ restaurant: serialize(withRatingSummary(restaurant)) });
 };
 
 const getRestaurantMenu = async (req, res) => {
@@ -72,6 +98,11 @@ const getRestaurantMenu = async (req, res) => {
           },
         },
       },
+      ratings: {
+        select: {
+          score: true,
+        },
+      },
     },
   });
 
@@ -87,6 +118,7 @@ const getRestaurantMenu = async (req, res) => {
       address: restaurant.address,
       coverImage: restaurant.coverImage,
       isBusy: restaurant.isBusy,
+      ...ratingSummary(restaurant.ratings),
     }),
     categories: serialize(restaurant.menuCategories),
   });

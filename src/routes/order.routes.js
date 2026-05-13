@@ -8,6 +8,8 @@ const {
   createOrder,
   getMyOrders,
   getMyOrderById,
+  rateOrder,
+  dismissOrderRatingPrompt,
 } = require("../controllers/order.controller");
 
 const router = express.Router();
@@ -34,6 +36,15 @@ const orderIdSchema = z.object({
   }),
 });
 
+const rateOrderSchema = z.object({
+  params: z.object({
+    id: z.string().cuid(),
+  }),
+  body: z.object({
+    score: z.number().int().min(1).max(5),
+  }),
+});
+
 router.post(
   "/",
   requireAuth,
@@ -42,6 +53,20 @@ router.post(
   asyncHandler(createOrder),
 );
 router.get("/me", requireAuth, requireRole(USER_ROLES.CUSTOMER), asyncHandler(getMyOrders));
+router.post(
+  "/:id/rating",
+  requireAuth,
+  requireRole(USER_ROLES.CUSTOMER),
+  validate(rateOrderSchema),
+  asyncHandler(rateOrder),
+);
+router.post(
+  "/:id/rating-dismiss",
+  requireAuth,
+  requireRole(USER_ROLES.CUSTOMER),
+  validate(orderIdSchema),
+  asyncHandler(dismissOrderRatingPrompt),
+);
 router.get(
   "/me/:id",
   requireAuth,

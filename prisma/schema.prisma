@@ -33,6 +33,7 @@ model User {
 
   vendor   Vendor?
   orders   Order[]
+  ratings  OrderRating[]
 
   @@map("users")
 }
@@ -65,6 +66,7 @@ model Restaurant {
   menuCategories MenuCategory[]
   menuItems      MenuItem[]
   orders         Order[]
+  ratings        OrderRating[]
 
   @@index([vendorId])
   @@map("restaurants")
@@ -142,16 +144,36 @@ model Order {
   status      OrderStatus @default(ACCEPTED)
   notes       String?
   totalAmount Decimal     @map("total_amount") @db.Decimal(10, 2)
+  ratingPromptDismissedAt DateTime? @map("rating_prompt_dismissed_at")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   customer   User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
+  rating     OrderRating?
 
   @@index([customerId])
   @@index([restaurantId, status])
   @@map("orders")
+}
+
+model OrderRating {
+  id           String   @id @default(cuid())
+  orderId      String   @unique @map("order_id")
+  restaurantId String   @map("restaurant_id")
+  customerId   String   @map("customer_id")
+  score        Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer   User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@map("order_ratings")
 }
 
 model OrderItem {
