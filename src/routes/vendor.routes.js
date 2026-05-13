@@ -15,6 +15,7 @@ const {
   createVendorMenuItem,
   updateVendorMenuItem,
   updateVendorMenuItemAvailability,
+  deleteVendorMenuItem,
 } = require("../controllers/vendor.controller");
 
 const router = express.Router();
@@ -140,6 +141,11 @@ router.patch(
   "/menu-items/:id/availability",
   validate(menuItemAvailabilitySchema),
   asyncHandler(updateVendorMenuItemAvailability),
+);
+router.delete(
+  "/menu-items/:id",
+  validate(cuidParamSchema),
+  asyncHandler(deleteVendorMenuItem),
 );
 
 module.exports = router;

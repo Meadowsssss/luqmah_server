@@ -331,7 +331,16 @@ const updateVendorMenuItem = async (req, res) => {
     throw new ApiError(404, "Menu item not found");
   }
 
-  const nextRestaurantId = req.body.restaurantId ?? existingMenuItem.restaurantId;
+  if (
+    req.body.restaurantId &&
+    req.body.restaurantId !== existingMenuItem.restaurantId
+  ) {
+    throw new ApiError(400, "Menu items must stay in their current restaurant", {
+      code: "MENU_ITEM_RESTAURANT_LOCKED",
+    });
+  }
+
+  const nextRestaurantId = existingMenuItem.restaurantId;
   await ensureVendorRestaurant(req.auth.vendorId, nextRestaurantId);
   const nextCategoryId = req.body.categoryId ?? existingMenuItem.categoryId;
 
@@ -350,8 +359,8 @@ const updateVendorMenuItem = async (req, res) => {
     const updated = await tx.menuItem.update({
       where: { id: existingMenuItem.id },
       data: {
-        restaurantId: req.body.restaurantId,
-        categoryId: req.body.categoryId,
+        restaurantId: nextRestaurantId,
+        categoryId: nextCategoryId,
         title: req.body.title,
         description: req.body.description,
         price: req.body.price,
@@ -447,6 +456,44 @@ const updateVendorMenuItemAvailability = async (req, res) => {
   res.json({ menuItem: serialize(updatedMenuItem) });
 };
 
+const deleteVendorMenuItem = async (req, res) => {
+  const menuItem = await prisma.menuItem.findFirst({
+    where: {
+      id: req.params.id,
+      restaurant: {
+        vendorId: req.auth.vendorId,
+      },
+    },
+    include: {
+      restaurant: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!menuItem) {
+    throw new ApiError(404, "Menu item not found");
+  }
+
+  await prisma.menuItem.delete({
+    where: { id: menuItem.id },
+  });
+
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: menuItem.restaurant.id,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: menuItem.restaurant.id,
+  });
+
+  res.json({ deletedItemId: menuItem.id });
+};
+
 module.exports = {
   getVendorRestaurants,
   updateVendorRestaurantBusyState,
@@ -458,4 +505,5 @@ module.exports = {
   createVendorMenuItem,
   updateVendorMenuItem,
   updateVendorMenuItemAvailability,
+  deleteVendorMenuItem,
 };
