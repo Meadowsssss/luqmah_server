@@ -11,7 +11,8 @@ CREATE TABLE "public"."order_ratings" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "order_ratings_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "order_ratings_pkey" PRIMARY KEY ("id"),
+    CONSTRAINT "order_ratings_score_check" CHECK ("score" >= 1 AND "score" <= 5)
 );
 
 -- CreateIndex
