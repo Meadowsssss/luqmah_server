@@ -138,7 +138,7 @@ model MenuItemCustomization {
 model Order {
   id          String      @id @default(cuid())
   customerId  String      @map("customer_id")
-  restaurantId String     @map("restaurant_id")
+  restaurantId String?    @map("restaurant_id")
   status      OrderStatus @default(ACCEPTED)
   notes       String?
   totalAmount Decimal     @map("total_amount") @db.Decimal(10, 2)
@@ -146,7 +146,7 @@ model Order {
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   customer   User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   orderItems OrderItem[]
 
   @@index([customerId])

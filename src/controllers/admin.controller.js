@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const { prisma } = require("../lib/prisma");
-const { USER_ROLES } = require("../constants/enums");
+const { USER_ROLES, ORDER_STATUSES } = require("../constants/enums");
 const { signToken } = require("../utils/jwt");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
@@ -116,19 +116,26 @@ const deleteVendor = async (req, res) => {
 
   const restaurantIds = vendor.restaurants.map((restaurant) => restaurant.id);
   if (restaurantIds.length > 0) {
-    const existingOrder = await prisma.order.findFirst({
+    const existingActiveOrder = await prisma.order.findFirst({
       where: {
         restaurantId: {
           in: restaurantIds,
+        },
+        status: {
+          in: [
+            ORDER_STATUSES.ACCEPTED,
+            ORDER_STATUSES.IN_PROGRESS,
+            ORDER_STATUSES.READY,
+          ],
         },
       },
       select: { id: true },
     });
 
-    if (existingOrder) {
+    if (existingActiveOrder) {
       throw new ApiError(
         409,
-        "This vendor cannot be deleted because customers have already placed orders from this vendor.",
+        "This vendor cannot be deleted because it still has active orders.",
       );
     }
   }
