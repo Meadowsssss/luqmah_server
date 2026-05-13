@@ -1,8 +1,9 @@
 const { prisma } = require("../lib/prisma");
-const { ORDER_STATUSES, VENDOR_ORDER_FILTERS } = require("../constants/enums");
+const { USER_ROLES, ORDER_STATUSES, VENDOR_ORDER_FILTERS } = require("../constants/enums");
 const { canTransitionOrderStatus } = require("../utils/order-status");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
+const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
 
 const vendorOrderInclude = {
   restaurant: {
@@ -96,6 +97,16 @@ const updateVendorRestaurantBusyState = async (req, res) => {
     data: { isBusy },
   });
 
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.RESTAURANT_UPDATED,
+    restaurantId,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.RESTAURANT_UPDATED,
+    restaurantId,
+  });
+
   res.json({ restaurant: serialize(restaurant) });
 };
 
@@ -129,6 +140,16 @@ const createVendorRestaurantCategory = async (req, res) => {
       title: normalizedTitle,
       sortOrder,
     },
+  });
+
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId,
   });
 
   res.status(201).json({ category: serialize(category) });
@@ -203,6 +224,21 @@ const updateVendorOrderStatus = async (req, res) => {
     include: vendorOrderInclude,
   });
 
+  realtime.notifyUser(updatedOrder.customerId, {
+    type: EVENT_TYPES.ORDER_UPDATED,
+    orderId: updatedOrder.id,
+    customerId: updatedOrder.customerId,
+    vendorId: req.auth.vendorId,
+    restaurantId: updatedOrder.restaurantId,
+  });
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.ORDER_UPDATED,
+    orderId: updatedOrder.id,
+    customerId: updatedOrder.customerId,
+    vendorId: req.auth.vendorId,
+    restaurantId: updatedOrder.restaurantId,
+  });
+
   res.json({ order: serialize(updatedOrder) });
 };
 
@@ -266,6 +302,16 @@ const createVendorMenuItem = async (req, res) => {
       },
     },
     include: vendorMenuItemInclude,
+  });
+
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId,
   });
 
   res.status(201).json({ menuItem: serialize(menuItem) });
@@ -353,6 +399,16 @@ const updateVendorMenuItem = async (req, res) => {
     include: vendorMenuItemInclude,
   });
 
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: hydratedMenuItem.restaurant.id,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: hydratedMenuItem.restaurant.id,
+  });
+
   res.json({ menuItem: serialize(hydratedMenuItem) });
 };
 
@@ -376,6 +432,16 @@ const updateVendorMenuItemAvailability = async (req, res) => {
       isAvailable: req.body.isAvailable,
     },
     include: vendorMenuItemInclude,
+  });
+
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: updatedMenuItem.restaurant.id,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.MENU_UPDATED,
+    restaurantId: updatedMenuItem.restaurant.id,
   });
 
   res.json({ menuItem: serialize(updatedMenuItem) });

@@ -8,6 +8,7 @@ const { prisma } = require("../lib/prisma");
 const { USER_ROLES, ORDER_STATUSES } = require("../constants/enums");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
+const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
 
 const orderInclude = {
   restaurant: {
@@ -157,6 +158,23 @@ const createOrder = async (req, res) => {
     include: orderInclude,
   });
 
+  if (restaurant.vendorId) {
+    realtime.notifyVendor(restaurant.vendorId, {
+      type: EVENT_TYPES.ORDER_CREATED,
+      orderId: order.id,
+      customerId: req.auth.userId,
+      vendorId: restaurant.vendorId,
+      restaurantId,
+    });
+  }
+  realtime.notifyUser(req.auth.userId, {
+    type: EVENT_TYPES.ORDER_CREATED,
+    orderId: order.id,
+    customerId: req.auth.userId,
+    vendorId: restaurant.vendorId,
+    restaurantId,
+  });
+
   res.status(201).json({
     order: serialize(order),
   });
@@ -231,6 +249,17 @@ const rateOrder = async (req, res) => {
     },
   });
 
+  realtime.notifyUser(req.auth.userId, {
+    type: EVENT_TYPES.RATING_CREATED,
+    orderId: order.id,
+    customerId: req.auth.userId,
+    restaurantId: order.restaurantId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.RESTAURANT_UPDATED,
+    restaurantId: order.restaurantId,
+  });
+
   res.status(201).json({ rating: serialize(rating) });
 };
 
@@ -247,6 +276,13 @@ const dismissOrderRatingPrompt = async (req, res) => {
     where: { id: latestCompletedOrder.id },
     data: { ratingPromptDismissedAt: new Date() },
     include: orderInclude,
+  });
+
+  realtime.notifyUser(req.auth.userId, {
+    type: EVENT_TYPES.ORDER_UPDATED,
+    orderId: order.id,
+    customerId: req.auth.userId,
+    restaurantId: order.restaurantId,
   });
 
   res.json({ order: serialize(order) });

@@ -1,10 +1,15 @@
 require("dotenv").config();
 
+const http = require("http");
 const { app } = require("./app");
 const { env } = require("./config/env");
 const { prisma } = require("./lib/prisma");
+const { attachRealtimeServer } = require("./realtime/socket-server");
 
-const server = app.listen(env.PORT, () => {
+const server = http.createServer(app);
+attachRealtimeServer(server);
+
+server.listen(env.PORT, () => {
   console.log(`Luqmah API listening on port ${env.PORT}`);
 });
 
