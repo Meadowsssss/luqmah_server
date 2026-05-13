@@ -1,0 +1,7 @@
+◇ injected env (10) from .env // tip: ⌘ enable debugging { debug: true }
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+Luqmah API listening on port 4000
+[0mGET /restaurants [32m200[0m 85.236 ms - 18[0m
+[0mGET /restaurants [32m200[0m 108.152 ms - 18[0m
+[0mGET /restaurants [32m200[0m 3.660 ms - 18[0m
+[0mGET /restaurants [32m200[0m 2.710 ms - 18[0m

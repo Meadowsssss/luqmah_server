@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+  VENDOR
+}
+
+enum OrderStatus {
+  ACCEPTED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  firebaseUid  String?  @unique @map("firebase_uid")
+  passwordHash String?  @map("password_hash")
+  role         UserRole
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  vendor   Vendor?
+  orders   Order[]
+
+  @@map("users")
+}
+
+model Vendor {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurants Restaurant[]
+
+  @@map("vendors")
+}
+
+model Restaurant {
+  id          String   @id @default(cuid())
+  vendorId    String   @map("vendor_id")
+  title       String
+  description String?
+  address     String?
+  coverImage  String?  @map("cover_image")
+  isActive    Boolean  @default(true) @map("is_active")
+  isBusy      Boolean  @default(false) @map("is_busy")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  menuCategories MenuCategory[]
+  menuItems      MenuItem[]
+  orders         Order[]
+
+  @@index([vendorId])
+  @@map("restaurants")
+}
+
+model MenuCategory {
+  id           String   @id @default(cuid())
+  restaurantId String   @map("restaurant_id")
+  title        String
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems   MenuItem[]
+
+  @@index([restaurantId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  restaurantId String  @map("restaurant_id")
+  categoryId  String   @map("category_id")
+  title       String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?  @map("image_url")
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  restaurant     Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category       MenuCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  ingredients    MenuItemIngredient[]
+  customizations MenuItemCustomization[]
+  orderItems     OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@map("menu_items")
+}
+
+model MenuItemIngredient {
+  id         String   @id @default(cuid())
+  menuItemId String   @map("menu_item_id")
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@index([menuItemId])
+  @@map("menu_item_ingredients")
+}
+
+model MenuItemCustomization {
+  id         String   @id @default(cuid())
+  menuItemId String   @map("menu_item_id")
+  title      String
+  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  menuItem                 MenuItem                   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItemCustomizations  OrderItemCustomization[]
+
+  @@index([menuItemId])
+  @@map("menu_item_customizations")
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  customerId  String      @map("customer_id")
+  restaurantId String     @map("restaurant_id")
+  status      OrderStatus @default(ACCEPTED)
+  notes       String?
+  totalAmount Decimal     @map("total_amount") @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  customer   User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@index([customerId])
+  @@index([restaurantId, status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId      String   @map("order_id")
+  menuItemId   String?  @map("menu_item_id")
+  itemTitle    String   @map("item_title")
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(10, 2)
+  quantity     Int
+  lineTotal    Decimal  @map("line_total") @db.Decimal(10, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  order                   Order                    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem                MenuItem?                @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  customizations          OrderItemCustomization[]
+
+  @@index([orderId])
+  @@index([menuItemId])
+  @@map("order_items")
+}
+
+model OrderItemCustomization {
+  id                      String   @id @default(cuid())
+  orderItemId             String   @map("order_item_id")
+  menuItemCustomizationId String?  @map("menu_item_customization_id")
+  title                   String
+  priceDelta              Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  orderItem             OrderItem               @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  menuItemCustomization MenuItemCustomization? @relation(fields: [menuItemCustomizationId], references: [id], onDelete: SetNull)
+
+  @@index([orderItemId])
+  @@index([menuItemCustomizationId])
+  @@map("order_item_customizations")
+}

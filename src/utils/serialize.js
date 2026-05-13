@@ -1,0 +1,25 @@
+const { Prisma } = require("@prisma/client");
+
+const serialize = (value) => {
+  if (value instanceof Prisma.Decimal) {
+    return Number(value);
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(serialize);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, serialize(nestedValue)]),
+    );
+  }
+
+  return value;
+};
+
+module.exports = { serialize };
