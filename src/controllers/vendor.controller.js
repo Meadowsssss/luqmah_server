@@ -101,10 +101,12 @@ const updateVendorRestaurantBusyState = async (req, res) => {
     type: EVENT_TYPES.RESTAURANT_UPDATED,
     restaurantId,
     vendorId: req.auth.vendorId,
+    isBusy,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.RESTAURANT_UPDATED,
     restaurantId,
+    isBusy,
   });
 
   res.json({ restaurant: serialize(restaurant) });
@@ -144,11 +146,13 @@ const createVendorRestaurantCategory = async (req, res) => {
 
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "category_created",
     restaurantId,
     vendorId: req.auth.vendorId,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "category_created",
     restaurantId,
   });
 
@@ -227,6 +231,7 @@ const updateVendorOrderStatus = async (req, res) => {
   realtime.notifyUser(updatedOrder.customerId, {
     type: EVENT_TYPES.ORDER_UPDATED,
     orderId: updatedOrder.id,
+    status: updatedOrder.status,
     customerId: updatedOrder.customerId,
     vendorId: req.auth.vendorId,
     restaurantId: updatedOrder.restaurantId,
@@ -234,6 +239,8 @@ const updateVendorOrderStatus = async (req, res) => {
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.ORDER_UPDATED,
     orderId: updatedOrder.id,
+    status: updatedOrder.status,
+    order: serialize(updatedOrder),
     customerId: updatedOrder.customerId,
     vendorId: req.auth.vendorId,
     restaurantId: updatedOrder.restaurantId,
@@ -306,11 +313,16 @@ const createVendorMenuItem = async (req, res) => {
 
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "created",
+    menuItemId: menuItem.id,
+    menuItem: serialize(menuItem),
     restaurantId,
     vendorId: req.auth.vendorId,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "created",
+    menuItemId: menuItem.id,
     restaurantId,
   });
 
@@ -410,11 +422,16 @@ const updateVendorMenuItem = async (req, res) => {
 
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "updated",
+    menuItemId: hydratedMenuItem.id,
+    menuItem: serialize(hydratedMenuItem),
     restaurantId: hydratedMenuItem.restaurant.id,
     vendorId: req.auth.vendorId,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "updated",
+    menuItemId: hydratedMenuItem.id,
     restaurantId: hydratedMenuItem.restaurant.id,
   });
 
@@ -445,11 +462,16 @@ const updateVendorMenuItemAvailability = async (req, res) => {
 
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "availability_changed",
+    menuItemId: updatedMenuItem.id,
+    menuItem: serialize(updatedMenuItem),
     restaurantId: updatedMenuItem.restaurant.id,
     vendorId: req.auth.vendorId,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "availability_changed",
+    menuItemId: updatedMenuItem.id,
     restaurantId: updatedMenuItem.restaurant.id,
   });
 
@@ -483,11 +505,15 @@ const deleteVendorMenuItem = async (req, res) => {
 
   realtime.notifyVendor(req.auth.vendorId, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "deleted",
+    menuItemId: menuItem.id,
     restaurantId: menuItem.restaurant.id,
     vendorId: req.auth.vendorId,
   });
   realtime.notifyRole(USER_ROLES.CUSTOMER, {
     type: EVENT_TYPES.MENU_UPDATED,
+    action: "deleted",
+    menuItemId: menuItem.id,
     restaurantId: menuItem.restaurant.id,
   });
 

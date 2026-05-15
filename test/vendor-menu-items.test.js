@@ -75,25 +75,20 @@ test("deleteVendorMenuItem deletes vendor-owned item and notifies realtime liste
     );
 
     assert.deepEqual(res.body, { deletedItemId: "item_1" });
-    assert.deepEqual(notifications, [
-      {
-        target: "vendor",
-        vendorId: "vendor_1",
-        payload: {
-          type: "menu.updated",
-          restaurantId: "rest_1",
-          vendorId: "vendor_1",
-        },
-      },
-      {
-        target: "role",
-        role: "CUSTOMER",
-        payload: {
-          type: "menu.updated",
-          restaurantId: "rest_1",
-        },
-      },
-    ]);
+    assert.equal(notifications.length, 2);
+    assert.equal(notifications[0].target, "vendor");
+    assert.equal(notifications[0].vendorId, "vendor_1");
+    assert.equal(notifications[0].payload.type, "menu.updated");
+    assert.equal(notifications[0].payload.action, "deleted");
+    assert.equal(notifications[0].payload.menuItemId, "item_1");
+    assert.equal(notifications[0].payload.restaurantId, "rest_1");
+    assert.equal(notifications[0].payload.vendorId, "vendor_1");
+    assert.equal(notifications[1].target, "role");
+    assert.equal(notifications[1].role, "CUSTOMER");
+    assert.equal(notifications[1].payload.type, "menu.updated");
+    assert.equal(notifications[1].payload.action, "deleted");
+    assert.equal(notifications[1].payload.menuItemId, "item_1");
+    assert.equal(notifications[1].payload.restaurantId, "rest_1");
   } finally {
     cleanup();
   }

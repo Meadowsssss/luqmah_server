@@ -162,6 +162,7 @@ const createOrder = async (req, res) => {
     realtime.notifyVendor(restaurant.vendorId, {
       type: EVENT_TYPES.ORDER_CREATED,
       orderId: order.id,
+      order: serialize(order),
       customerId: req.auth.userId,
       vendorId: restaurant.vendorId,
       restaurantId,
@@ -170,6 +171,7 @@ const createOrder = async (req, res) => {
   realtime.notifyUser(req.auth.userId, {
     type: EVENT_TYPES.ORDER_CREATED,
     orderId: order.id,
+    order: serialize(order),
     customerId: req.auth.userId,
     vendorId: restaurant.vendorId,
     restaurantId,
@@ -252,6 +254,7 @@ const rateOrder = async (req, res) => {
   realtime.notifyUser(req.auth.userId, {
     type: EVENT_TYPES.RATING_CREATED,
     orderId: order.id,
+    score,
     customerId: req.auth.userId,
     restaurantId: order.restaurantId,
   });
