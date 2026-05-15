@@ -261,6 +261,14 @@ test("restaurant responses include aggregate rating values", async () => {
         },
       ],
     },
+    order: {
+      findMany: async () => [
+        {
+          inProgressStartedAt: "2026-05-16T10:00:00.000Z",
+          readyAt: "2026-05-16T10:14:00.000Z",
+        },
+      ],
+    },
   };
 
   const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/restaurant.controller", {
@@ -279,6 +287,7 @@ test("restaurant responses include aggregate rating values", async () => {
 
     assert.equal(res.body.restaurants[0].averageRating, 4.5);
     assert.equal(res.body.restaurants[0].ratingCount, 2);
+    assert.equal(res.body.restaurants[0].estimatedPrepMinutes, 14);
     assert.equal("ratings" in res.body.restaurants[0], false);
   } finally {
     cleanup();

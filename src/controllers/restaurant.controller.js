@@ -1,6 +1,7 @@
 const { prisma } = require("../lib/prisma");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
+const { historicalPrepMinutesFromOrders } = require("../utils/order-estimate");
 
 const restaurantSummaryInclude = {
   vendor: {
@@ -48,6 +49,30 @@ const withRatingSummary = (restaurant) => {
   };
 };
 
+const attachRestaurantPrepEstimate = async (restaurant) => {
+  const historicalOrders = await prisma.order.findMany({
+    where: {
+      restaurantId: restaurant.id,
+      status: {
+        in: ["READY", "COMPLETED"],
+      },
+      inProgressStartedAt: { not: null },
+      readyAt: { not: null },
+    },
+    orderBy: { readyAt: "desc" },
+    take: 20,
+    select: {
+      inProgressStartedAt: true,
+      readyAt: true,
+    },
+  });
+
+  return {
+    ...restaurant,
+    estimatedPrepMinutes: historicalPrepMinutesFromOrders(historicalOrders),
+  };
+};
+
 const getRestaurants = async (_req, res) => {
   const restaurants = await prisma.restaurant.findMany({
     where: { isActive: true },
@@ -55,7 +80,13 @@ const getRestaurants = async (_req, res) => {
     orderBy: { createdAt: "desc" },
   });
 
-  res.json({ restaurants: serialize(restaurants.map(withRatingSummary)) });
+  const restaurantsWithPrepEstimate = await Promise.all(
+    restaurants.map(async (restaurant) =>
+      attachRestaurantPrepEstimate(withRatingSummary(restaurant)),
+    ),
+  );
+
+  res.json({ restaurants: serialize(restaurantsWithPrepEstimate) });
 };
 
 const getRestaurantById = async (req, res) => {
