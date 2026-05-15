@@ -171,6 +171,9 @@ model Order {
   status      OrderStatus @default(ACCEPTED)
   notes       String?
   totalAmount Decimal     @map("total_amount") @db.Decimal(10, 2)
+  inProgressStartedAt DateTime? @map("in_progress_started_at")
+  readyAt     DateTime?   @map("ready_at")
+  estimatedReadyAt DateTime? @map("estimated_ready_at")
   ratingPromptDismissedAt DateTime? @map("rating_prompt_dismissed_at")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")

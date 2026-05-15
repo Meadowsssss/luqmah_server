@@ -101,6 +101,128 @@ test("updateVendorRestaurantBusyState updates vendor-owned restaurant", async ()
   }
 });
 
+test("updateVendorOrderStatus stores ETA fields when order enters in progress", async () => {
+  let updatedData;
+  const prisma = {
+    order: {
+      findFirst: async () => ({
+        id: "order_1",
+        status: "ACCEPTED",
+        restaurantId: "rest_1",
+        customerId: "cust_1",
+        inProgressStartedAt: null,
+        readyAt: null,
+      }),
+      findMany: async () => [
+        {
+          inProgressStartedAt: "2026-05-16T10:00:00.000Z",
+          readyAt: "2026-05-16T10:12:00.000Z",
+        },
+        {
+          inProgressStartedAt: "2026-05-16T11:00:00.000Z",
+          readyAt: "2026-05-16T11:18:00.000Z",
+        },
+      ],
+      update: async ({ data }) => {
+        updatedData = data;
+        return {
+          id: "order_1",
+          status: data.status,
+          estimatedReadyAt: data.estimatedReadyAt,
+          customerId: "cust_1",
+          restaurantId: "rest_1",
+          orderItems: [],
+          customer: null,
+          restaurant: null,
+        };
+      },
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+    "../src/realtime/socket-events": {
+      EVENT_TYPES: { ORDER_UPDATED: "ORDER_UPDATED" },
+      realtime: { notifyUser() {}, notifyVendor() {}, notifyRole() {} },
+    },
+  });
+
+  const res = { json() {} };
+
+  try {
+    await loaded.updateVendorOrderStatus(
+      {
+        auth: { vendorId: "vendor_1" },
+        params: { id: "order_1" },
+        body: { status: "IN_PROGRESS" },
+      },
+      res,
+    );
+
+    assert.equal(updatedData.status, "IN_PROGRESS");
+    assert.ok(updatedData.inProgressStartedAt instanceof Date);
+    assert.ok(updatedData.estimatedReadyAt instanceof Date);
+  } finally {
+    cleanup();
+  }
+});
+
+test("updateVendorOrderStatus stores readyAt when order becomes ready", async () => {
+  let updatedData;
+  const prisma = {
+    order: {
+      findFirst: async () => ({
+        id: "order_1",
+        status: "IN_PROGRESS",
+        restaurantId: "rest_1",
+        customerId: "cust_1",
+        inProgressStartedAt: new Date("2026-05-16T10:00:00.000Z"),
+        readyAt: null,
+      }),
+      update: async ({ data }) => {
+        updatedData = data;
+        return {
+          id: "order_1",
+          status: data.status,
+          customerId: "cust_1",
+          restaurantId: "rest_1",
+          orderItems: [],
+          customer: null,
+          restaurant: null,
+        };
+      },
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+    "../src/realtime/socket-events": {
+      EVENT_TYPES: { ORDER_UPDATED: "ORDER_UPDATED" },
+      realtime: { notifyUser() {}, notifyVendor() {}, notifyRole() {} },
+    },
+  });
+
+  const res = { json() {} };
+
+  try {
+    await loaded.updateVendorOrderStatus(
+      {
+        auth: { vendorId: "vendor_1" },
+        params: { id: "order_1" },
+        body: { status: "READY" },
+      },
+      res,
+    );
+
+    assert.equal(updatedData.status, "READY");
+    assert.ok(updatedData.readyAt instanceof Date);
+  } finally {
+    cleanup();
+  }
+});
+
 test("createOrder requires selections for required single-choice groups", async () => {
   const prisma = {
     restaurant: {

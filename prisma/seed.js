@@ -247,6 +247,8 @@ async function main() {
       customerId: customerUser.id,
       restaurantId: restaurantOne.id,
       status: ORDER_STATUSES.IN_PROGRESS,
+      inProgressStartedAt: new Date('2026-05-16T12:00:00.000Z'),
+      estimatedReadyAt: new Date('2026-05-16T12:15:00.000Z'),
       notes: "Please call on arrival",
       totalAmount: new Prisma.Decimal("14.30"),
       orderItems: {
@@ -284,6 +286,9 @@ async function main() {
       customerId: secondCustomer.id,
       restaurantId: restaurantOne.id,
       status: ORDER_STATUSES.COMPLETED,
+      inProgressStartedAt: new Date('2026-05-16T11:30:00.000Z'),
+      readyAt: new Date('2026-05-16T11:42:00.000Z'),
+      estimatedReadyAt: new Date('2026-05-16T11:45:00.000Z'),
       totalAmount: new Prisma.Decimal("7.55"),
       orderItems: {
         create: [
@@ -296,7 +301,7 @@ async function main() {
             customizations: {
               create: [
                 {
-                  menuItemCustomizationId: chickenWrap.customizations[0].id,
+                  menuItemCustomizationId: chickenWrapOptionsGroup.options[0].id,
                   title: "Extra Garlic Sauce",
                   priceDelta: new Prisma.Decimal("0.40"),
                 },

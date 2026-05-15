@@ -1,6 +1,11 @@
 const { prisma } = require("../lib/prisma");
 const { USER_ROLES, ORDER_STATUSES, VENDOR_ORDER_FILTERS } = require("../constants/enums");
 const { canTransitionOrderStatus } = require("../utils/order-status");
+const {
+  DEFAULT_PREP_MINUTES,
+  estimateReadyAt,
+  historicalPrepMinutesFromOrders,
+} = require("../utils/order-estimate");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
 const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
@@ -263,9 +268,42 @@ const updateVendorOrderStatus = async (req, res) => {
     );
   }
 
+  const nextUpdateData = { status };
+  if (status === ORDER_STATUSES.IN_PROGRESS && !order.inProgressStartedAt) {
+    const historicalOrders = await prisma.order.findMany({
+      where: {
+        restaurantId: order.restaurantId,
+        id: { not: order.id },
+        status: {
+          in: [ORDER_STATUSES.READY, ORDER_STATUSES.COMPLETED],
+        },
+        inProgressStartedAt: { not: null },
+        readyAt: { not: null },
+      },
+      orderBy: { readyAt: "desc" },
+      take: 20,
+      select: {
+        inProgressStartedAt: true,
+        readyAt: true,
+      },
+    });
+
+    const startedAt = new Date();
+    const prepMinutes = historicalOrders.length
+      ? historicalPrepMinutesFromOrders(historicalOrders)
+      : DEFAULT_PREP_MINUTES;
+
+    nextUpdateData.inProgressStartedAt = startedAt;
+    nextUpdateData.estimatedReadyAt = estimateReadyAt(startedAt, prepMinutes);
+  }
+
+  if (status === ORDER_STATUSES.READY && !order.readyAt) {
+    nextUpdateData.readyAt = new Date();
+  }
+
   const updatedOrder = await prisma.order.update({
     where: { id: order.id },
-    data: { status },
+    data: nextUpdateData,
     include: vendorOrderInclude,
   });
 
