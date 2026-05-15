@@ -311,6 +311,7 @@ const updateVendorOrderStatus = async (req, res) => {
     type: EVENT_TYPES.ORDER_UPDATED,
     orderId: updatedOrder.id,
     status: updatedOrder.status,
+    order: serialize(updatedOrder),
     customerId: updatedOrder.customerId,
     vendorId: req.auth.vendorId,
     restaurantId: updatedOrder.restaurantId,

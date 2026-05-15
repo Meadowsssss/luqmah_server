@@ -223,6 +223,71 @@ test("updateVendorOrderStatus stores readyAt when order becomes ready", async ()
   }
 });
 
+test("updateVendorOrderStatus sends the full updated order to customer realtime events", async () => {
+  const customerEvents = [];
+  const vendorEvents = [];
+  const prisma = {
+    order: {
+      findFirst: async () => ({
+        id: "order_1",
+        status: "IN_PROGRESS",
+        restaurantId: "rest_1",
+        customerId: "cust_1",
+        inProgressStartedAt: new Date("2026-05-16T10:00:00.000Z"),
+        readyAt: null,
+      }),
+      update: async ({ data }) => ({
+        id: "order_1",
+        status: data.status,
+        customerId: "cust_1",
+        restaurantId: "rest_1",
+        estimatedReadyAt: new Date("2026-05-16T10:15:00.000Z"),
+        orderItems: [],
+        customer: null,
+        restaurant: null,
+      }),
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+    "../src/realtime/socket-events": {
+      EVENT_TYPES: { ORDER_UPDATED: "ORDER_UPDATED" },
+      realtime: {
+        notifyUser(_userId, event) {
+          customerEvents.push(event);
+        },
+        notifyVendor(_vendorId, event) {
+          vendorEvents.push(event);
+        },
+        notifyRole() {},
+      },
+    },
+  });
+
+  const res = { json() {} };
+
+  try {
+    await loaded.updateVendorOrderStatus(
+      {
+        auth: { vendorId: "vendor_1" },
+        params: { id: "order_1" },
+        body: { status: "READY" },
+      },
+      res,
+    );
+
+    assert.equal(customerEvents.length, 1);
+    assert.equal(customerEvents[0].type, "ORDER_UPDATED");
+    assert.equal(customerEvents[0].order.id, "order_1");
+    assert.equal(customerEvents[0].order.status, "READY");
+    assert.equal(vendorEvents.length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
 test("createOrder requires selections for required single-choice groups", async () => {
   const prisma = {
     restaurant: {
