@@ -10,6 +10,7 @@ async function main() {
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
   await prisma.menuItemCustomization.deleteMany();
+  await prisma.menuItemOptionGroup.deleteMany();
   await prisma.menuItemIngredient.deleteMany();
   await prisma.menuItem.deleteMany();
   await prisma.menuCategory.deleteMany();
@@ -128,22 +129,30 @@ async function main() {
           { name: "Garlic Sauce" },
         ],
       },
-      customizations: {
+    },
+  });
+
+  const chickenWrapOptionsGroup = await prisma.menuItemOptionGroup.create({
+    data: {
+      menuItemId: chickenWrap.id,
+      title: "Options",
+      selectionType: "MULTIPLE",
+      options: {
         create: [
           {
+            menuItemId: chickenWrap.id,
             title: "Extra Garlic Sauce",
             priceDelta: new Prisma.Decimal("0.40"),
           },
           {
+            menuItemId: chickenWrap.id,
             title: "Add Fries Inside",
             priceDelta: new Prisma.Decimal("0.80"),
           },
         ],
       },
     },
-    include: {
-      customizations: true,
-    },
+    include: { options: true },
   });
 
   const beefBowl = await prisma.menuItem.create({
@@ -156,9 +165,18 @@ async function main() {
       ingredients: {
         create: [{ name: "Beef" }, { name: "Rice" }, { name: "Tahini" }],
       },
-      customizations: {
+    },
+  });
+
+  await prisma.menuItemOptionGroup.create({
+    data: {
+      menuItemId: beefBowl.id,
+      title: "Options",
+      selectionType: "MULTIPLE",
+      options: {
         create: [
           {
+            menuItemId: beefBowl.id,
             title: "Extra Tahini",
             priceDelta: new Prisma.Decimal("0.30"),
           },
@@ -180,7 +198,7 @@ async function main() {
     },
   });
 
-  await prisma.menuItem.create({
+  const crispyChickenSandwich = await prisma.menuItem.create({
     data: {
       restaurantId: restaurantTwo.id,
       categoryId: sandwichesCategory.id,
@@ -190,9 +208,18 @@ async function main() {
       ingredients: {
         create: [{ name: "Chicken Fillet" }, { name: "Lettuce" }, { name: "Spicy Mayo" }],
       },
-      customizations: {
+    },
+  });
+
+  await prisma.menuItemOptionGroup.create({
+    data: {
+      menuItemId: crispyChickenSandwich.id,
+      title: "Options",
+      selectionType: "MULTIPLE",
+      options: {
         create: [
           {
+            menuItemId: crispyChickenSandwich.id,
             title: "Cheese Slice",
             priceDelta: new Prisma.Decimal("0.50"),
           },
@@ -233,7 +260,7 @@ async function main() {
             customizations: {
               create: [
                 {
-                  menuItemCustomizationId: chickenWrap.customizations[0].id,
+                  menuItemCustomizationId: chickenWrapOptionsGroup.options[0].id,
                   title: "Extra Garlic Sauce",
                   priceDelta: new Prisma.Decimal("0.40"),
                 },

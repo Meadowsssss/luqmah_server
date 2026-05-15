@@ -100,3 +100,119 @@ test("updateVendorRestaurantBusyState updates vendor-owned restaurant", async ()
     cleanup();
   }
 });
+
+test("createOrder requires selections for required single-choice groups", async () => {
+  const prisma = {
+    restaurant: {
+      findFirst: async () => ({ id: "rest_1", isActive: true, isBusy: false, vendorId: "vendor_1" }),
+    },
+    menuItem: {
+      findMany: async () => [
+        {
+          id: "item_1",
+          restaurantId: "rest_1",
+          title: "Coffee",
+          price: 2,
+          optionGroups: [
+            {
+              id: "group_1",
+              title: "Size",
+              selectionType: "SINGLE",
+              isRequired: true,
+              options: [
+                { id: "opt_small", title: "Small", priceDelta: 0 },
+                { id: "opt_large", title: "Large", priceDelta: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+  });
+
+  try {
+    await assert.rejects(
+      () =>
+        loaded.createOrder(
+          {
+            auth: { role: "CUSTOMER", userId: "cust_1" },
+            body: { restaurantId: "rest_1", items: [{ menuItemId: "item_1", quantity: 1 }] },
+          },
+          {},
+        ),
+      (error) => {
+        assert.equal(error.statusCode, 400);
+        assert.match(error.message, /size is required/i);
+        return true;
+      },
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test("createOrder includes selected option price deltas in totals", async () => {
+  let createdOrderPayload;
+  const prisma = {
+    restaurant: {
+      findFirst: async () => ({ id: "rest_1", isActive: true, isBusy: false, vendorId: "vendor_1" }),
+    },
+    menuItem: {
+      findMany: async () => [
+        {
+          id: "item_1",
+          restaurantId: "rest_1",
+          title: "Coffee",
+          price: 2,
+          optionGroups: [
+            {
+              id: "group_1",
+              title: "Size",
+              selectionType: "SINGLE",
+              isRequired: true,
+              options: [
+                { id: "opt_large", title: "Large", priceDelta: 1 },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    order: {
+      create: async ({ data }) => {
+        createdOrderPayload = data;
+        return { id: "order_1", customerId: "cust_1", restaurant: null, rating: null, orderItems: [] };
+      },
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+  });
+
+  const res = { status() { return this; }, json() {} };
+
+  try {
+    await loaded.createOrder(
+      {
+        auth: { role: "CUSTOMER", userId: "cust_1" },
+        body: {
+          restaurantId: "rest_1",
+          items: [{ menuItemId: "item_1", quantity: 2, optionIds: ["opt_large"] }],
+        },
+      },
+      res,
+    );
+
+    assert.equal(Number(createdOrderPayload.totalAmount), 6);
+    assert.equal(createdOrderPayload.orderItems.create[0].customizations.create[0].title, "Size: Large");
+  } finally {
+    cleanup();
+  }
+});

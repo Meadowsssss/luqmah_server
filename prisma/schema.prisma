@@ -21,6 +21,11 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum OptionSelectionType {
+  SINGLE
+  MULTIPLE
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -102,12 +107,30 @@ model MenuItem {
   restaurant     Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category       MenuCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   ingredients    MenuItemIngredient[]
-  customizations MenuItemCustomization[]
+  options        MenuItemCustomization[]
+  optionGroups   MenuItemOptionGroup[]
   orderItems     OrderItem[]
 
   @@index([restaurantId])
   @@index([categoryId])
   @@map("menu_items")
+}
+
+model MenuItemOptionGroup {
+  id            String              @id @default(cuid())
+  menuItemId    String              @map("menu_item_id")
+  title         String
+  selectionType OptionSelectionType @default(MULTIPLE) @map("selection_type")
+  isRequired    Boolean             @default(false) @map("is_required")
+  sortOrder     Int                 @default(0) @map("sort_order")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  menuItem MenuItem                @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  options  MenuItemCustomization[]
+
+  @@index([menuItemId])
+  @@map("menu_item_option_groups")
 }
 
 model MenuItemIngredient {
@@ -123,17 +146,21 @@ model MenuItemIngredient {
 }
 
 model MenuItemCustomization {
-  id         String   @id @default(cuid())
-  menuItemId String   @map("menu_item_id")
-  title      String
-  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(cuid())
+  menuItemId    String   @map("menu_item_id")
+  optionGroupId String   @map("option_group_id")
+  title         String
+  priceDelta    Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  menuItem                 MenuItem                   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  orderItemCustomizations  OrderItemCustomization[]
+  menuItem                MenuItem                @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  optionGroup             MenuItemOptionGroup     @relation(fields: [optionGroupId], references: [id], onDelete: Cascade)
+  orderItemCustomizations OrderItemCustomization[]
 
   @@index([menuItemId])
+  @@index([optionGroupId])
   @@map("menu_item_customizations")
 }
 

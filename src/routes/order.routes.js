@@ -23,6 +23,7 @@ const createOrderSchema = z.object({
         z.object({
           menuItemId: z.string().cuid(),
           quantity: z.number().int().positive().max(20),
+          optionIds: z.array(z.string().cuid()).optional(),
           customizationIds: z.array(z.string().cuid()).optional(),
         }),
       )

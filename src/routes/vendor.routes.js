@@ -34,9 +34,18 @@ const vendorOrderQuerySchema = z.object({
 
 const moneySchema = z.coerce.number().nonnegative().max(999999);
 
-const customizationInputSchema = z.object({
+const optionInputSchema = z.object({
   title: z.string().trim().min(1).max(120),
   priceDelta: moneySchema,
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+const optionGroupInputSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  selectionType: z.enum(["single", "multiple"]),
+  isRequired: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).optional(),
+  options: z.array(optionInputSchema).min(1),
 });
 
 const menuItemCreateSchema = z.object({
@@ -49,7 +58,8 @@ const menuItemCreateSchema = z.object({
     imageUrl: z.string().url().optional(),
     isAvailable: z.boolean().default(true),
     ingredientNames: z.array(z.string().trim().min(1).max(120)).optional(),
-    customizations: z.array(customizationInputSchema).optional(),
+    optionGroups: z.array(optionGroupInputSchema).optional(),
+    customizations: z.array(optionInputSchema).optional(),
   }),
 });
 
@@ -78,11 +88,12 @@ const menuItemUpdateSchema = z.object({
       title: z.string().trim().min(2).max(150).optional(),
       description: z.string().trim().max(500).nullable().optional(),
       price: moneySchema.optional(),
-      imageUrl: z.string().url().nullable().optional(),
-      isAvailable: z.boolean().optional(),
-      ingredientNames: z.array(z.string().trim().min(1).max(120)).optional(),
-      customizations: z.array(customizationInputSchema).optional(),
-    })
+       imageUrl: z.string().url().nullable().optional(),
+       isAvailable: z.boolean().optional(),
+       ingredientNames: z.array(z.string().trim().min(1).max(120)).optional(),
+       optionGroups: z.array(optionGroupInputSchema).optional(),
+       customizations: z.array(optionInputSchema).optional(),
+     })
     .refine((body) => Object.keys(body).length > 0, {
       message: "At least one field is required",
     }),

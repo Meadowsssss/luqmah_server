@@ -91,8 +91,13 @@ const getRestaurantMenu = async (req, res) => {
               ingredients: {
                 orderBy: { createdAt: "asc" },
               },
-              customizations: {
-                orderBy: { createdAt: "asc" },
+              optionGroups: {
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                include: {
+                  options: {
+                    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                  },
+                },
               },
             },
           },

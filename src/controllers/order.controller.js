@@ -46,6 +46,54 @@ const getLatestCompletedCustomerOrder = (customerId) => {
   });
 };
 
+const decimal = (value) =>
+  typeof Prisma.Decimal === "function" ? new Prisma.Decimal(value) : Number(value);
+
+const getRequestedOptionIds = (item) => [
+  ...new Set([...(item.optionIds ?? []), ...(item.customizationIds ?? [])]),
+];
+
+const validateAndSelectOptions = (menuItem, item) => {
+  const requestedOptionIds = getRequestedOptionIds(item);
+  const optionMap = new Map();
+
+  const optionGroups = menuItem.optionGroups ?? [];
+
+  for (const group of optionGroups) {
+    for (const option of group.options) {
+      optionMap.set(option.id, { ...option, optionGroup: group });
+    }
+  }
+
+  const selectionsByGroupId = new Map();
+  const selectedOptions = requestedOptionIds.map((optionId) => {
+    const option = optionMap.get(optionId);
+
+    if (!option) {
+      throw new ApiError(400, `Option ${optionId} is not available for ${menuItem.title}`);
+    }
+
+    const currentSelections = selectionsByGroupId.get(option.optionGroup.id) ?? [];
+    currentSelections.push(option);
+    selectionsByGroupId.set(option.optionGroup.id, currentSelections);
+    return option;
+  });
+
+  for (const group of optionGroups) {
+    const groupSelections = selectionsByGroupId.get(group.id) ?? [];
+
+    if (group.isRequired && groupSelections.length === 0) {
+      throw new ApiError(400, `${group.title} is required for ${menuItem.title}`);
+    }
+
+    if (group.selectionType === "SINGLE" && groupSelections.length > 1) {
+      throw new ApiError(400, `Choose only one option for ${group.title}`);
+    }
+  }
+
+  return selectedOptions;
+};
+
 const createOrder = async (req, res) => {
   if (req.auth.role !== USER_ROLES.CUSTOMER) {
     throw new ApiError(403, "Only customers can place orders");
@@ -79,7 +127,11 @@ const createOrder = async (req, res) => {
       isAvailable: true,
     },
     include: {
-      customizations: true,
+      optionGroups: {
+        include: {
+          options: true,
+        },
+      },
     },
   });
 
@@ -96,53 +148,37 @@ const createOrder = async (req, res) => {
       throw new ApiError(400, "Invalid menu item");
     }
 
-    const requestedCustomizationIds = [...new Set(item.customizationIds ?? [])];
-    const customizationMap = new Map(
-      menuItem.customizations.map((customization) => [customization.id, customization]),
-    );
+    const selectedOptions = validateAndSelectOptions(menuItem, item);
 
-    const selectedCustomizations = requestedCustomizationIds.map((customizationId) => {
-      const customization = customizationMap.get(customizationId);
-
-      if (!customization) {
-        throw new ApiError(
-          400,
-          `Customization ${customizationId} is not available for ${menuItem.title}`,
-        );
-      }
-
-      return customization;
-    });
-
-    const unitPrice = new Prisma.Decimal(menuItem.price);
+    const unitPriceValue = Number(menuItem.price);
     const quantity = item.quantity;
-    const customizationUnitTotal = selectedCustomizations.reduce(
-      (sum, customization) => sum.plus(customization.priceDelta),
-      new Prisma.Decimal(0),
+    const customizationUnitTotal = selectedOptions.reduce(
+      (sum, option) => sum + Number(option.priceDelta),
+      0,
     );
-    const lineTotal = unitPrice
-      .plus(customizationUnitTotal)
-      .mul(new Prisma.Decimal(quantity));
+    const lineTotalValue = (unitPriceValue + customizationUnitTotal) * quantity;
 
     return {
       menuItemId: menuItem.id,
       itemTitle: menuItem.title,
-      unitPrice,
+      unitPrice: decimal(unitPriceValue),
       quantity,
-      lineTotal,
+      lineTotal: decimal(lineTotalValue),
       customizations: {
-        create: selectedCustomizations.map((customization) => ({
-          menuItemCustomizationId: customization.id,
-          title: customization.title,
-          priceDelta: customization.priceDelta,
+        create: selectedOptions.map((option) => ({
+          menuItemCustomizationId: option.id,
+          title: option.optionGroup.selectionType === "SINGLE"
+            ? `${option.optionGroup.title}: ${option.title}`
+            : option.title,
+          priceDelta: option.priceDelta,
         })),
       },
     };
   });
 
   const totalAmount = orderItemsData.reduce(
-    (sum, item) => sum.plus(item.lineTotal),
-    new Prisma.Decimal(0),
+    (sum, item) => sum + Number(item.lineTotal),
+    0,
   );
 
   const order = await prisma.order.create({
@@ -150,7 +186,7 @@ const createOrder = async (req, res) => {
       customerId: req.auth.userId,
       restaurantId,
       notes,
-      totalAmount,
+      totalAmount: decimal(totalAmount),
       orderItems: {
         create: orderItemsData,
       },

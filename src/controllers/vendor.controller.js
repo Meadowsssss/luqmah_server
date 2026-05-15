@@ -47,7 +47,48 @@ const vendorMenuItemInclude = {
     },
   },
   ingredients: true,
-  customizations: true,
+  optionGroups: {
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      options: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      },
+    },
+  },
+};
+
+const normalizeOptionGroups = (body = {}) => {
+  if (Array.isArray(body.optionGroups)) {
+    return body.optionGroups.map((group, groupIndex) => ({
+      title: group.title.trim(),
+      selectionType: group.selectionType === "single" ? "SINGLE" : "MULTIPLE",
+      isRequired: Boolean(group.isRequired),
+      sortOrder: group.sortOrder ?? groupIndex,
+      options: (group.options ?? []).map((option, optionIndex) => ({
+        title: option.title.trim(),
+        priceDelta: option.priceDelta,
+        sortOrder: option.sortOrder ?? optionIndex,
+      })),
+    }));
+  }
+
+  if (Array.isArray(body.customizations) && body.customizations.length > 0) {
+    return [
+      {
+        title: "Options",
+        selectionType: "MULTIPLE",
+        isRequired: false,
+        sortOrder: 0,
+        options: body.customizations.map((option, optionIndex) => ({
+          title: option.title.trim(),
+          priceDelta: option.priceDelta,
+          sortOrder: option.sortOrder ?? optionIndex,
+        })),
+      },
+    ];
+  }
+
+  return [];
 };
 
 const ensureVendorRestaurant = async (vendorId, restaurantId) => {
@@ -273,8 +314,8 @@ const createVendorMenuItem = async (req, res) => {
     imageUrl,
     isAvailable,
     ingredientNames,
-    customizations,
   } = req.body;
+  const optionGroups = normalizeOptionGroups(req.body);
 
   await ensureVendorRestaurant(req.auth.vendorId, restaurantId);
 
@@ -289,26 +330,55 @@ const createVendorMenuItem = async (req, res) => {
     throw new ApiError(404, "Menu category not found for this restaurant");
   }
 
-  const menuItem = await prisma.menuItem.create({
-    data: {
-      restaurantId,
-      categoryId,
-      title,
-      description,
-      price,
-      imageUrl,
-      isAvailable,
-      ingredients: {
-        create: (ingredientNames ?? []).map((name) => ({ name })),
+  const menuItem = await prisma.$transaction(async (tx) => {
+    const createdMenuItem = await tx.menuItem.create({
+      data: {
+        restaurantId,
+        categoryId,
+        title,
+        description,
+        price,
+        imageUrl,
+        isAvailable,
+        ingredients: {
+          create: (ingredientNames ?? []).map((name) => ({ name })),
+        },
       },
-      customizations: {
-        create: (customizations ?? []).map((customization) => ({
-          title: customization.title,
-          priceDelta: customization.priceDelta,
+    });
+
+    if (optionGroups.length) {
+      await tx.menuItemOptionGroup.createMany({
+        data: optionGroups.map((group) => ({
+          menuItemId: createdMenuItem.id,
+          title: group.title,
+          selectionType: group.selectionType,
+          isRequired: group.isRequired,
+          sortOrder: group.sortOrder,
         })),
-      },
-    },
-    include: vendorMenuItemInclude,
+      });
+
+      const createdGroups = await tx.menuItemOptionGroup.findMany({
+        where: { menuItemId: createdMenuItem.id },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      });
+
+      await tx.menuItemCustomization.createMany({
+        data: createdGroups.flatMap((groupRecord, groupIndex) =>
+          optionGroups[groupIndex].options.map((option) => ({
+            menuItemId: createdMenuItem.id,
+            optionGroupId: groupRecord.id,
+            title: option.title,
+            priceDelta: option.priceDelta,
+            sortOrder: option.sortOrder,
+          })),
+        ),
+      });
+    }
+
+    return tx.menuItem.findUnique({
+      where: { id: createdMenuItem.id },
+      include: vendorMenuItemInclude,
+    });
   });
 
   realtime.notifyVendor(req.auth.vendorId, {
@@ -355,6 +425,7 @@ const updateVendorMenuItem = async (req, res) => {
   const nextRestaurantId = existingMenuItem.restaurantId;
   await ensureVendorRestaurant(req.auth.vendorId, nextRestaurantId);
   const nextCategoryId = req.body.categoryId ?? existingMenuItem.categoryId;
+  const optionGroups = normalizeOptionGroups(req.body);
 
   const category = await prisma.menuCategory.findFirst({
     where: {
@@ -396,18 +467,37 @@ const updateVendorMenuItem = async (req, res) => {
       }
     }
 
-    if (req.body.customizations) {
-      await tx.menuItemCustomization.deleteMany({
+    if (req.body.optionGroups || req.body.customizations) {
+      await tx.menuItemOptionGroup.deleteMany({
         where: { menuItemId: existingMenuItem.id },
       });
 
-      if (req.body.customizations.length) {
-        await tx.menuItemCustomization.createMany({
-          data: req.body.customizations.map((customization) => ({
+      if (optionGroups.length) {
+        await tx.menuItemOptionGroup.createMany({
+          data: optionGroups.map((group) => ({
             menuItemId: existingMenuItem.id,
-            title: customization.title,
-            priceDelta: customization.priceDelta,
+            title: group.title,
+            selectionType: group.selectionType,
+            isRequired: group.isRequired,
+            sortOrder: group.sortOrder,
           })),
+        });
+
+        const createdGroups = await tx.menuItemOptionGroup.findMany({
+          where: { menuItemId: existingMenuItem.id },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        });
+
+        await tx.menuItemCustomization.createMany({
+          data: createdGroups.flatMap((groupRecord, groupIndex) =>
+            optionGroups[groupIndex].options.map((option) => ({
+              menuItemId: existingMenuItem.id,
+              optionGroupId: groupRecord.id,
+              title: option.title,
+              priceDelta: option.priceDelta,
+              sortOrder: option.sortOrder,
+            })),
+          ),
         });
       }
     }
