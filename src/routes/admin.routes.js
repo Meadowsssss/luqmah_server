@@ -3,7 +3,9 @@ const { z } = require("zod");
 const { asyncHandler } = require("../utils/async-handler");
 const { validate } = require("../middleware/validate");
 const { requireAuth, requireRole } = require("../middleware/auth");
+const { imageUpload, requireUploadedImage } = require("../middleware/upload");
 const { USER_ROLES } = require("../constants/enums");
+const { uploadRestaurantCover } = require("../controllers/upload.controller");
 const {
   loginAdmin,
   getAdminMe,
@@ -53,6 +55,14 @@ const vendorIdParamSchema = z.object({
 router.post("/login", validate(adminLoginSchema), asyncHandler(loginAdmin));
 router.get("/me", requireAuth, requireRole(USER_ROLES.ADMIN), asyncHandler(getAdminMe));
 router.get("/vendors", requireAuth, requireRole(USER_ROLES.ADMIN), asyncHandler(getVendors));
+router.post(
+  "/uploads/restaurant-cover",
+  requireAuth,
+  requireRole(USER_ROLES.ADMIN),
+  imageUpload.single("image"),
+  requireUploadedImage,
+  asyncHandler(uploadRestaurantCover),
+);
 router.post(
   "/vendors",
   requireAuth,

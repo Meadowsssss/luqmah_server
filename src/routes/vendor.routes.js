@@ -3,7 +3,9 @@ const { z } = require("zod");
 const { asyncHandler } = require("../utils/async-handler");
 const { validate } = require("../middleware/validate");
 const { requireAuth, requireRole } = require("../middleware/auth");
+const { imageUpload, requireUploadedImage } = require("../middleware/upload");
 const { USER_ROLES, ORDER_STATUSES } = require("../constants/enums");
+const { uploadMenuItemImage } = require("../controllers/upload.controller");
 const {
   getVendorRestaurants,
   updateVendorRestaurantBusyState,
@@ -119,6 +121,12 @@ const vendorOrderStatusUpdateSchema = z.object({
 
 router.use(requireAuth, requireRole(USER_ROLES.VENDOR));
 
+router.post(
+  "/uploads/menu-item-image",
+  imageUpload.single("image"),
+  requireUploadedImage,
+  asyncHandler(uploadMenuItemImage),
+);
 router.get("/restaurants/me", asyncHandler(getVendorRestaurants));
 router.patch(
   "/restaurants/busy",

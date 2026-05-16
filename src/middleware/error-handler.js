@@ -7,6 +7,14 @@ const notFoundHandler = (req, _res, next) => {
 };
 
 const errorHandler = (error, _req, res, _next) => {
+  if (error.name === "MulterError") {
+    const isTooLarge = error.code === "LIMIT_FILE_SIZE";
+    return res.status(400).json({
+      code: isTooLarge ? "IMAGE_TOO_LARGE" : "UPLOAD_ERROR",
+      message: isTooLarge ? "Image must be 5 MB or smaller." : error.message,
+    });
+  }
+
   if (isZodError(error)) {
     return res.status(400).json({
       code: "VALIDATION_ERROR",
