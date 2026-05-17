@@ -76,3 +76,113 @@ test("getVendorRestaurants includes menu categories for product form", async () 
     cleanup();
   }
 });
+
+test("updateVendorProfile updates the signed-in vendor name", async () => {
+  const prisma = {
+    user: {
+      update: async ({ where, data }) => ({
+        id: where.id,
+        name: data.name,
+        email: "vendor@example.com",
+        phoneNumber: null,
+        role: "VENDOR",
+        createdAt: new Date("2026-05-18T10:00:00.000Z"),
+        updatedAt: new Date("2026-05-18T10:05:00.000Z"),
+        vendor: { id: "vendor_1" },
+      }),
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+  });
+
+  const res = {
+    body: null,
+    json(payload) {
+      this.body = payload;
+    },
+  };
+
+  try {
+    await loaded.updateVendorProfile(
+      {
+        auth: { userId: "user_1", vendorId: "vendor_1" },
+        body: { name: "Campus Team" },
+      },
+      res,
+    );
+
+    assert.equal(res.body.user.name, "Campus Team");
+    assert.equal(res.body.user.vendor.id, "vendor_1");
+  } finally {
+    cleanup();
+  }
+});
+
+test("updateVendorRestaurant edits vendor-owned restaurant details", async () => {
+  const notifications = [];
+  const prisma = {
+    restaurant: {
+      findFirst: async () => ({ id: "rest_1", vendorId: "vendor_1" }),
+      update: async ({ data }) => ({
+        id: "rest_1",
+        title: data.title,
+        description: data.description,
+        address: data.address,
+        coverImage: data.coverImage,
+        isBusy: false,
+        menuCategories: [],
+        _count: { menuItems: 3, orders: 2 },
+      }),
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+    "../src/realtime/socket-events": {
+      EVENT_TYPES: { RESTAURANT_UPDATED: "restaurant.updated" },
+      realtime: {
+        notifyVendor(vendorId, payload) {
+          notifications.push({ target: "vendor", vendorId, payload });
+        },
+        notifyRole(role, payload) {
+          notifications.push({ target: "role", role, payload });
+        },
+      },
+    },
+  });
+
+  const res = {
+    body: null,
+    json(payload) {
+      this.body = payload;
+    },
+  };
+
+  try {
+    await loaded.updateVendorRestaurant(
+      {
+        auth: { vendorId: "vendor_1" },
+        params: { id: "rest_1" },
+        body: {
+          title: "Campus Bites Plus",
+          description: "Fresh plates",
+          address: "Main Street",
+          coverImage: "https://example.com/cover.jpg",
+        },
+      },
+      res,
+    );
+
+    assert.equal(res.body.restaurant.title, "Campus Bites Plus");
+    assert.equal(res.body.restaurant.description, "Fresh plates");
+    assert.equal(notifications.length, 2);
+    assert.equal(notifications[0].payload.type, "restaurant.updated");
+    assert.equal(notifications[0].payload.restaurantId, "rest_1");
+  } finally {
+    cleanup();
+  }
+});

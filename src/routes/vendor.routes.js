@@ -5,9 +5,14 @@ const { validate } = require("../middleware/validate");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const { imageUpload, requireUploadedImage } = require("../middleware/upload");
 const { USER_ROLES, ORDER_STATUSES } = require("../constants/enums");
-const { uploadMenuItemImage } = require("../controllers/upload.controller");
+const {
+  uploadMenuItemImage,
+  uploadRestaurantCover,
+} = require("../controllers/upload.controller");
 const {
   getVendorRestaurants,
+  updateVendorProfile,
+  updateVendorRestaurant,
   updateVendorRestaurantBusyState,
   createVendorRestaurantCategory,
   getVendorOrders,
@@ -79,6 +84,28 @@ const restaurantBusyUpdateSchema = z.object({
   }),
 });
 
+const vendorProfileUpdateSchema = z.object({
+  body: z.object({
+    name: z.string().trim().min(2).max(120),
+  }),
+});
+
+const vendorRestaurantUpdateSchema = z.object({
+  params: z.object({
+    id: z.string().cuid(),
+  }),
+  body: z
+    .object({
+      title: z.string().trim().min(2).max(150).optional(),
+      description: z.string().trim().max(500).nullable().optional(),
+      address: z.string().trim().max(250).nullable().optional(),
+      coverImage: z.string().url().nullable().optional(),
+    })
+    .refine((body) => Object.keys(body).length > 0, {
+      message: "At least one field is required",
+    }),
+});
+
 const menuItemUpdateSchema = z.object({
   params: z.object({
     id: z.string().cuid(),
@@ -127,7 +154,23 @@ router.post(
   requireUploadedImage,
   asyncHandler(uploadMenuItemImage),
 );
+router.post(
+  "/uploads/restaurant-cover",
+  imageUpload.single("image"),
+  requireUploadedImage,
+  asyncHandler(uploadRestaurantCover),
+);
+router.patch(
+  "/profile",
+  validate(vendorProfileUpdateSchema),
+  asyncHandler(updateVendorProfile),
+);
 router.get("/restaurants/me", asyncHandler(getVendorRestaurants));
+router.patch(
+  "/restaurants/:id",
+  validate(vendorRestaurantUpdateSchema),
+  asyncHandler(updateVendorRestaurant),
+);
 router.patch(
   "/restaurants/busy",
   validate(restaurantBusyUpdateSchema),

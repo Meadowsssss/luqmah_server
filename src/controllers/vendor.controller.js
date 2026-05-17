@@ -134,6 +134,69 @@ const getVendorRestaurants = async (req, res) => {
   res.json({ restaurants: serialize(restaurants) });
 };
 
+const updateVendorProfile = async (req, res) => {
+  const { name } = req.body;
+
+  const user = await prisma.user.update({
+    where: { id: req.auth.userId },
+    data: { name: name.trim() },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      vendor: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  res.json({ user: serialize(user) });
+};
+
+const updateVendorRestaurant = async (req, res) => {
+  const restaurant = await ensureVendorRestaurant(req.auth.vendorId, req.params.id);
+  const { title, description, address, coverImage } = req.body;
+
+  const updatedRestaurant = await prisma.restaurant.update({
+    where: { id: restaurant.id },
+    data: {
+      ...(title !== undefined ? { title: title.trim() } : {}),
+      ...(description !== undefined ? { description: description?.trim() || null } : {}),
+      ...(address !== undefined ? { address: address?.trim() || null } : {}),
+      ...(coverImage !== undefined ? { coverImage: coverImage || null } : {}),
+    },
+    include: {
+      menuCategories: {
+        orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      },
+      _count: {
+        select: {
+          menuItems: true,
+          orders: true,
+        },
+      },
+    },
+  });
+
+  realtime.notifyVendor(req.auth.vendorId, {
+    type: EVENT_TYPES.RESTAURANT_UPDATED,
+    restaurantId: updatedRestaurant.id,
+    vendorId: req.auth.vendorId,
+  });
+  realtime.notifyRole(USER_ROLES.CUSTOMER, {
+    type: EVENT_TYPES.RESTAURANT_UPDATED,
+    restaurantId: updatedRestaurant.id,
+  });
+
+  res.json({ restaurant: serialize(updatedRestaurant) });
+};
+
 const updateVendorRestaurantBusyState = async (req, res) => {
   const { restaurantId, isBusy } = req.body;
 
@@ -652,6 +715,8 @@ const deleteVendorMenuItem = async (req, res) => {
 
 module.exports = {
   getVendorRestaurants,
+  updateVendorProfile,
+  updateVendorRestaurant,
   updateVendorRestaurantBusyState,
   createVendorRestaurantCategory,
   getVendorOrders,
