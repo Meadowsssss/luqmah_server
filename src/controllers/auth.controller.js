@@ -1,7 +1,6 @@
 const bcrypt = require("bcryptjs");
 const { prisma } = require("../lib/prisma");
 const { getFirebaseAuth } = require("../lib/firebase-admin");
-const { getMicrosoftDisplayNameByEmail } = require("../lib/microsoft-graph");
 const { USER_ROLES } = require("../constants/enums");
 const { signToken } = require("../utils/jwt");
 const { serialize } = require("../utils/serialize");
@@ -26,21 +25,6 @@ const customerPasswordAuthDisabledError = () =>
   new ApiError(403, "Customers must authenticate with Firebase.", {
     code: "CUSTOMER_FIREBASE_AUTH_REQUIRED",
   });
-
-const isStudentEmail = (email) => email.endsWith("@std.edu.hu.jo");
-
-const resolveCustomerName = async ({ email, decodedToken }) => {
-  const microsoftDisplayName = isStudentEmail(email)
-    ? await getMicrosoftDisplayNameByEmail(email)
-    : null;
-
-  return (
-    microsoftDisplayName ||
-    decodedToken.name?.trim() ||
-    email.split("@")[0] ||
-    "Luqmah Customer"
-  );
-};
 
 const register = async (_req, _res) => {
   throw customerPasswordAuthDisabledError();
@@ -128,7 +112,10 @@ const syncCustomerWithFirebase = async (req, res) => {
   }
 
   const firebaseUid = decodedToken.uid;
-  const name = await resolveCustomerName({ email, decodedToken });
+  const name =
+    decodedToken.name?.trim() ||
+    email.split("@").first ||
+    "Luqmah Customer";
 
   const [linkedUser, emailUser] = await Promise.all([
     prisma.user.findUnique({
