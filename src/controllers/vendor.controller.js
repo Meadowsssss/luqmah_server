@@ -23,6 +23,7 @@ const vendorOrderInclude = {
       id: true,
       name: true,
       email: true,
+      phoneNumber: true,
     },
   },
   orderItems: {

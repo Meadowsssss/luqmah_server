@@ -32,6 +32,7 @@ model User {
   email        String   @unique
   firebaseUid  String?  @unique @map("firebase_uid")
   passwordHash String?  @map("password_hash")
+  phoneNumber  String?  @map("phone_number")
   role         UserRole
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")

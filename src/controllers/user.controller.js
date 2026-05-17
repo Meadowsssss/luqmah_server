@@ -50,4 +50,22 @@ const changePassword = async (req, res) => {
   res.json({ message: "Password updated successfully" });
 };
 
-module.exports = { changePassword };
+const updateCustomerPhoneNumber = async (req, res) => {
+  if (req.auth.role !== USER_ROLES.CUSTOMER) {
+    throw new ApiError(403, "Only customers can update a phone number.", {
+      code: "CUSTOMER_ACCESS_REQUIRED",
+    });
+  }
+
+  const phoneNumber = req.body.phoneNumber.trim();
+
+  const user = await prisma.user.update({
+    where: { id: req.auth.userId },
+    data: { phoneNumber },
+    select: { phoneNumber: true },
+  });
+
+  res.json({ phoneNumber: user.phoneNumber });
+};
+
+module.exports = { changePassword, updateCustomerPhoneNumber };
