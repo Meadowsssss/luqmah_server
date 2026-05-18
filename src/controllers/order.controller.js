@@ -120,15 +120,17 @@ const createOrder = async (req, res) => {
     );
   }
 
-  const blacklistEntry = await prisma.vendorBlacklist.findUnique({
-    where: {
-      vendorId_customerId: {
-        vendorId: restaurant.vendorId,
-        customerId: req.auth.userId,
-      },
-    },
-    select: { id: true },
-  });
+  const blacklistEntry = prisma.vendorBlacklist?.findUnique
+    ? await prisma.vendorBlacklist.findUnique({
+        where: {
+          vendorId_customerId: {
+            vendorId: restaurant.vendorId,
+            customerId: req.auth.userId,
+          },
+        },
+        select: { id: true },
+      })
+    : null;
 
   if (blacklistEntry) {
     throw new ApiError(403, "You are no longer allowed to place orders with this vendor.", {
