@@ -249,6 +249,123 @@ test("manual history rating works for older completed orders", async () => {
   }
 });
 
+test("cancelMyOrder cancels an accepted customer order", async () => {
+  let updatedStatus;
+  const prisma = {
+    order: {
+      findFirst: async () => ({
+        id: "order_1",
+        customerId: "customer_1",
+        restaurantId: "restaurant_1",
+        status: "ACCEPTED",
+        restaurant: {
+          id: "restaurant_1",
+          vendorId: "vendor_1",
+          title: "Campus Bites",
+          address: "Main Street",
+          coverImage: null,
+        },
+        rating: null,
+        orderItems: [],
+      }),
+      update: async ({ data }) => {
+        updatedStatus = data.status;
+        return {
+          id: "order_1",
+          customerId: "customer_1",
+          restaurantId: "restaurant_1",
+          status: data.status,
+          restaurant: {
+            id: "restaurant_1",
+            vendorId: "vendor_1",
+            title: "Campus Bites",
+            address: "Main Street",
+            coverImage: null,
+          },
+          rating: null,
+          orderItems: [],
+        };
+      },
+    },
+  };
+
+  const customerEvents = [];
+  const vendorEvents = [];
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+    "../src/realtime/socket-events": {
+      EVENT_TYPES: { ORDER_UPDATED: "ORDER_UPDATED" },
+      realtime: {
+        notifyUser(_userId, event) {
+          customerEvents.push(event);
+        },
+        notifyVendor(_vendorId, event) {
+          vendorEvents.push(event);
+        },
+      },
+    },
+  });
+  const res = { body: null, json(payload) { this.body = payload; } };
+
+  try {
+    await loaded.cancelMyOrder(
+      { auth: { userId: "customer_1" }, params: { id: "order_1" } },
+      res,
+    );
+
+    assert.equal(updatedStatus, "CANCELLED");
+    assert.equal(res.body.order.status, "CANCELLED");
+    assert.equal(customerEvents.length, 1);
+    assert.equal(vendorEvents.length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("cancelMyOrder rejects non-accepted orders", async () => {
+  const prisma = {
+    order: {
+      findFirst: async () => ({
+        id: "order_1",
+        customerId: "customer_1",
+        restaurantId: "restaurant_1",
+        status: "IN_PROGRESS",
+        restaurant: {
+          id: "restaurant_1",
+          vendorId: "vendor_1",
+          title: "Campus Bites",
+          address: "Main Street",
+          coverImage: null,
+        },
+        rating: null,
+        orderItems: [],
+      }),
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+  });
+
+  try {
+    await assert.rejects(
+      () => loaded.cancelMyOrder(
+        { auth: { userId: "customer_1" }, params: { id: "order_1" } },
+        {},
+      ),
+      (error) => {
+        assert.equal(error.statusCode, 409);
+        assert.equal(error.code, "ORDER_CANCELLATION_NOT_ALLOWED");
+        return true;
+      },
+    );
+  } finally {
+    cleanup();
+  }
+});
+
 test("restaurant responses include aggregate rating values", async () => {
   const prisma = {
     restaurant: {

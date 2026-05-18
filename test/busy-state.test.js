@@ -140,7 +140,7 @@ test("createOrder rejects customers with an existing active order", async () => 
       (error) => {
         assert.equal(error.statusCode, 409);
         assert.equal(error.code, "CUSTOMER_ACTIVE_ORDER_EXISTS");
-        assert.match(error.message, /already have an active order/i);
+        assert.match(error.message, /already have an order in progress/i);
         return true;
       },
     );

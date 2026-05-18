@@ -8,6 +8,7 @@ const {
   createOrder,
   getMyOrders,
   getMyOrderById,
+  cancelMyOrder,
   rateOrder,
   dismissOrderRatingPrompt,
 } = require("../controllers/order.controller");
@@ -54,6 +55,13 @@ router.post(
   asyncHandler(createOrder),
 );
 router.get("/me", requireAuth, requireRole(USER_ROLES.CUSTOMER), asyncHandler(getMyOrders));
+router.post(
+  "/:id/cancel",
+  requireAuth,
+  requireRole(USER_ROLES.CUSTOMER),
+  validate(orderIdSchema),
+  asyncHandler(cancelMyOrder),
+);
 router.post(
   "/:id/rating",
   requireAuth,

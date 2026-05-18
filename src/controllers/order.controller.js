@@ -15,6 +15,7 @@ const orderInclude = {
   restaurant: {
     select: {
       id: true,
+      vendorId: true,
       title: true,
       address: true,
       coverImage: true,
@@ -155,7 +156,7 @@ const createOrder = async (req, res) => {
   if (existingActiveOrder) {
     throw new ApiError(
       409,
-      "You already have an active order. Complete or cancel it before placing a new one.",
+      "You already have an order in progress. You can't place a new order until your current order is finished.",
       { code: "CUSTOMER_ACTIVE_ORDER_EXISTS" },
     );
   }
@@ -295,6 +296,55 @@ const getMyOrderById = async (req, res) => {
   res.json({ order: serialize(order) });
 };
 
+const cancelMyOrder = async (req, res) => {
+  const order = await prisma.order.findFirst({
+    where: {
+      id: req.params.id,
+      customerId: req.auth.userId,
+    },
+    include: orderInclude,
+  });
+
+  if (!order) {
+    throw new ApiError(404, "Order not found");
+  }
+
+  if (order.status !== ORDER_STATUSES.ACCEPTED) {
+    throw new ApiError(409, "This order can no longer be cancelled.", {
+      code: "ORDER_CANCELLATION_NOT_ALLOWED",
+    });
+  }
+
+  const cancelledOrder = await prisma.order.update({
+    where: { id: order.id },
+    data: { status: ORDER_STATUSES.CANCELLED },
+    include: orderInclude,
+  });
+
+  realtime.notifyUser(req.auth.userId, {
+    type: EVENT_TYPES.ORDER_UPDATED,
+    orderId: cancelledOrder.id,
+    status: cancelledOrder.status,
+    order: serialize(cancelledOrder),
+    customerId: req.auth.userId,
+    vendorId: cancelledOrder.restaurant?.vendorId,
+    restaurantId: cancelledOrder.restaurantId,
+  });
+  if (cancelledOrder.restaurant?.vendorId) {
+    realtime.notifyVendor(cancelledOrder.restaurant.vendorId, {
+      type: EVENT_TYPES.ORDER_UPDATED,
+      orderId: cancelledOrder.id,
+      status: cancelledOrder.status,
+      order: serialize(cancelledOrder),
+      customerId: req.auth.userId,
+      vendorId: cancelledOrder.restaurant.vendorId,
+      restaurantId: cancelledOrder.restaurantId,
+    });
+  }
+
+  res.json({ order: serialize(cancelledOrder) });
+};
+
 const rateOrder = async (req, res) => {
   const { score } = req.body;
   const order = await prisma.order.findFirst({
@@ -382,6 +432,7 @@ module.exports = {
   createOrder,
   getMyOrders,
   getMyOrderById,
+  cancelMyOrder,
   rateOrder,
   dismissOrderRatingPrompt,
   getLatestCompletedCustomerOrder,
