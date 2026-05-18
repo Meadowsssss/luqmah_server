@@ -77,50 +77,6 @@ test("getVendorRestaurants includes menu categories for product form", async () 
   }
 });
 
-test("updateVendorProfile updates the signed-in vendor name", async () => {
-  const prisma = {
-    user: {
-      update: async ({ where, data }) => ({
-        id: where.id,
-        name: data.name,
-        email: "vendor@example.com",
-        phoneNumber: null,
-        role: "VENDOR",
-        createdAt: new Date("2026-05-18T10:00:00.000Z"),
-        updatedAt: new Date("2026-05-18T10:05:00.000Z"),
-        vendor: { id: "vendor_1" },
-      }),
-    },
-  };
-
-  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/vendor.controller", {
-    "../src/lib/prisma": { prisma },
-    "../src/utils/serialize": { serialize: (value) => value },
-  });
-
-  const res = {
-    body: null,
-    json(payload) {
-      this.body = payload;
-    },
-  };
-
-  try {
-    await loaded.updateVendorProfile(
-      {
-        auth: { userId: "user_1", vendorId: "vendor_1" },
-        body: { name: "Campus Team" },
-      },
-      res,
-    );
-
-    assert.equal(res.body.user.name, "Campus Team");
-    assert.equal(res.body.user.vendor.id, "vendor_1");
-  } finally {
-    cleanup();
-  }
-});
-
 test("updateVendorRestaurant edits vendor-owned restaurant details", async () => {
   const notifications = [];
   const prisma = {

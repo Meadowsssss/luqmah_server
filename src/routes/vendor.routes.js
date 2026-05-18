@@ -11,7 +11,6 @@ const {
 } = require("../controllers/upload.controller");
 const {
   getVendorRestaurants,
-  updateVendorProfile,
   updateVendorRestaurant,
   updateVendorRestaurantBusyState,
   createVendorRestaurantCategory,
@@ -84,12 +83,6 @@ const restaurantBusyUpdateSchema = z.object({
   }),
 });
 
-const vendorProfileUpdateSchema = z.object({
-  body: z.object({
-    name: z.string().trim().min(2).max(120),
-  }),
-});
-
 const vendorRestaurantUpdateSchema = z.object({
   params: z.object({
     id: z.string().cuid(),
@@ -159,11 +152,6 @@ router.post(
   imageUpload.single("image"),
   requireUploadedImage,
   asyncHandler(uploadRestaurantCover),
-);
-router.patch(
-  "/profile",
-  validate(vendorProfileUpdateSchema),
-  asyncHandler(updateVendorProfile),
 );
 router.get("/restaurants/me", asyncHandler(getVendorRestaurants));
 router.patch(

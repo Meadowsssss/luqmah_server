@@ -134,31 +134,6 @@ const getVendorRestaurants = async (req, res) => {
   res.json({ restaurants: serialize(restaurants) });
 };
 
-const updateVendorProfile = async (req, res) => {
-  const { name } = req.body;
-
-  const user = await prisma.user.update({
-    where: { id: req.auth.userId },
-    data: { name: name.trim() },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phoneNumber: true,
-      role: true,
-      createdAt: true,
-      updatedAt: true,
-      vendor: {
-        select: {
-          id: true,
-        },
-      },
-    },
-  });
-
-  res.json({ user: serialize(user) });
-};
-
 const updateVendorRestaurant = async (req, res) => {
   const restaurant = await ensureVendorRestaurant(req.auth.vendorId, req.params.id);
   const { title, description, address, coverImage } = req.body;
@@ -715,7 +690,6 @@ const deleteVendorMenuItem = async (req, res) => {
 
 module.exports = {
   getVendorRestaurants,
-  updateVendorProfile,
   updateVendorRestaurant,
   updateVendorRestaurantBusyState,
   createVendorRestaurantCategory,
