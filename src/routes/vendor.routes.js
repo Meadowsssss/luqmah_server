@@ -13,6 +13,9 @@ const {
   getVendorRestaurants,
   updateVendorRestaurant,
   updateVendorRestaurantBusyState,
+  getVendorBlacklist,
+  createVendorBlacklistEntry,
+  deleteVendorBlacklistEntry,
   createVendorRestaurantCategory,
   getVendorOrders,
   getVendorOrderById,
@@ -139,6 +142,19 @@ const vendorOrderStatusUpdateSchema = z.object({
   }),
 });
 
+const vendorBlacklistCreateSchema = z.object({
+  body: z.object({
+    customerId: z.string().cuid(),
+    reason: z.string().trim().max(300).optional(),
+  }),
+});
+
+const vendorBlacklistDeleteSchema = z.object({
+  params: z.object({
+    customerId: z.string().cuid(),
+  }),
+});
+
 router.use(requireAuth, requireRole(USER_ROLES.VENDOR));
 
 router.post(
@@ -163,6 +179,17 @@ router.patch(
   "/restaurants/busy",
   validate(restaurantBusyUpdateSchema),
   asyncHandler(updateVendorRestaurantBusyState),
+);
+router.get("/blacklist", asyncHandler(getVendorBlacklist));
+router.post(
+  "/blacklist",
+  validate(vendorBlacklistCreateSchema),
+  asyncHandler(createVendorBlacklistEntry),
+);
+router.delete(
+  "/blacklist/:customerId",
+  validate(vendorBlacklistDeleteSchema),
+  asyncHandler(deleteVendorBlacklistEntry),
 );
 router.post(
   "/menu-categories",

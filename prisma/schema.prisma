@@ -37,10 +37,12 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  vendor   Vendor?
-  orders   Order[]
-  ratings  OrderRating[]
-  pushTokens PushToken[]
+  vendor                       Vendor?
+  orders                       Order[]
+  ratings                      OrderRating[]
+  pushTokens                   PushToken[]
+  vendorBlacklistEntries       VendorBlacklist[] @relation("VendorBlacklistCustomer")
+  createdVendorBlacklistEntries VendorBlacklist[] @relation("VendorBlacklistCreatedBy")
 
   @@map("users")
 }
@@ -51,10 +53,30 @@ model Vendor {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  restaurants Restaurant[]
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurants       Restaurant[]
+  blacklistEntries  VendorBlacklist[]
 
   @@map("vendors")
+}
+
+model VendorBlacklist {
+  id              String   @id @default(cuid())
+  vendorId        String   @map("vendor_id")
+  customerId      String   @map("customer_id")
+  reason          String?
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  vendor        Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  customer      User   @relation("VendorBlacklistCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  createdByUser User   @relation("VendorBlacklistCreatedBy", fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, customerId])
+  @@index([vendorId])
+  @@index([customerId])
+  @@map("vendor_blacklist")
 }
 
 model Restaurant {

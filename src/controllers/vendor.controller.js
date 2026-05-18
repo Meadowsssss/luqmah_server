@@ -64,6 +64,23 @@ const vendorMenuItemInclude = {
   },
 };
 
+const vendorBlacklistInclude = {
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+    },
+  },
+};
+
+const activeBlacklistStatuses = [
+  ORDER_STATUSES.ACCEPTED,
+  ORDER_STATUSES.IN_PROGRESS,
+  ORDER_STATUSES.READY,
+];
+
 const normalizeOptionGroups = (body = {}) => {
   if (Array.isArray(body.optionGroups)) {
     return body.optionGroups.map((group, groupIndex) => ({
@@ -133,6 +150,147 @@ const getVendorRestaurants = async (req, res) => {
   });
 
   res.json({ restaurants: serialize(restaurants) });
+};
+
+const getVendorBlacklist = async (req, res) => {
+  const entries = await prisma.vendorBlacklist.findMany({
+    where: { vendorId: req.auth.vendorId },
+    include: vendorBlacklistInclude,
+    orderBy: { createdAt: "desc" },
+  });
+
+  res.json({ entries: serialize(entries) });
+};
+
+const createVendorBlacklistEntry = async (req, res) => {
+  const customer = await prisma.user.findUnique({
+    where: { id: req.body.customerId },
+    select: {
+      id: true,
+      role: true,
+    },
+  });
+
+  if (!customer || customer.role !== USER_ROLES.CUSTOMER) {
+    throw new ApiError(404, "Customer not found");
+  }
+
+  const existingEntry = await prisma.vendorBlacklist.findUnique({
+    where: {
+      vendorId_customerId: {
+        vendorId: req.auth.vendorId,
+        customerId: customer.id,
+      },
+    },
+  });
+
+  if (existingEntry) {
+    throw new ApiError(409, "This student is already blacklisted", {
+      code: "CUSTOMER_ALREADY_BLACKLISTED",
+    });
+  }
+
+  const reason = req.body.reason?.trim() || null;
+  const entry = await prisma.vendorBlacklist.create({
+    data: {
+      vendorId: req.auth.vendorId,
+      customerId: customer.id,
+      reason,
+      createdByUserId: req.auth.userId,
+    },
+    include: vendorBlacklistInclude,
+  });
+
+  const activeOrders = await prisma.order.findMany({
+    where: {
+      customerId: customer.id,
+      status: {
+        in: activeBlacklistStatuses,
+      },
+      restaurant: {
+        vendorId: req.auth.vendorId,
+      },
+    },
+    select: { id: true },
+  });
+
+  const cancelledOrders = await Promise.all(
+    activeOrders.map((order) =>
+      prisma.order.update({
+        where: { id: order.id },
+        data: { status: ORDER_STATUSES.CANCELLED },
+        include: vendorOrderInclude,
+      }),
+    ),
+  );
+
+  await Promise.all(
+    cancelledOrders.map(async (order) => {
+      const serializedOrder = serialize(order);
+
+      realtime.notifyUser(order.customerId, {
+        type: EVENT_TYPES.ORDER_UPDATED,
+        orderId: order.id,
+        status: order.status,
+        order: serializedOrder,
+        customerId: order.customerId,
+        vendorId: req.auth.vendorId,
+        restaurantId: order.restaurantId,
+      });
+      realtime.notifyVendor(req.auth.vendorId, {
+        type: EVENT_TYPES.ORDER_UPDATED,
+        orderId: order.id,
+        status: order.status,
+        order: serializedOrder,
+        customerId: order.customerId,
+        vendorId: req.auth.vendorId,
+        restaurantId: order.restaurantId,
+      });
+
+      await sendPushToUser({
+        userId: order.customerId,
+        title: "Your order was cancelled",
+        body: "This vendor can no longer accept your orders.",
+        data: {
+          target: "customer_orders",
+          orderId: order.id,
+          eventType: EVENT_TYPES.ORDER_UPDATED,
+          status: ORDER_STATUSES.CANCELLED,
+        },
+      });
+    }),
+  );
+
+  res.status(201).json({
+    entry: serialize(entry),
+    cancelledOrders: serialize(cancelledOrders),
+  });
+};
+
+const deleteVendorBlacklistEntry = async (req, res) => {
+  const entry = await prisma.vendorBlacklist.findUnique({
+    where: {
+      vendorId_customerId: {
+        vendorId: req.auth.vendorId,
+        customerId: req.params.customerId,
+      },
+    },
+  });
+
+  if (!entry) {
+    throw new ApiError(404, "Blacklist entry not found");
+  }
+
+  await prisma.vendorBlacklist.delete({
+    where: {
+      vendorId_customerId: {
+        vendorId: req.auth.vendorId,
+        customerId: req.params.customerId,
+      },
+    },
+  });
+
+  res.json({ removedCustomerId: req.params.customerId });
 };
 
 const updateVendorRestaurant = async (req, res) => {
@@ -721,6 +879,9 @@ module.exports = {
   getVendorRestaurants,
   updateVendorRestaurant,
   updateVendorRestaurantBusyState,
+  getVendorBlacklist,
+  createVendorBlacklistEntry,
+  deleteVendorBlacklistEntry,
   createVendorRestaurantCategory,
   getVendorOrders,
   getVendorOrderById,
