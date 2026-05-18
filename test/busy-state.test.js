@@ -35,6 +35,9 @@ test("createOrder rejects busy restaurants", async () => {
     restaurant: {
       findFirst: async () => ({ id: "rest_1", isActive: true, isBusy: true }),
     },
+    order: {
+      findFirst: async () => null,
+    },
   };
 
   const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
@@ -96,6 +99,51 @@ test("updateVendorRestaurantBusyState updates vendor-owned restaurant", async ()
     assert.deepEqual(res.body, {
       restaurant: { id: "rest_1", title: "Campus Bites", isBusy: true },
     });
+  } finally {
+    cleanup();
+  }
+});
+
+test("createOrder rejects customers with an existing active order", async () => {
+  const prisma = {
+    restaurant: {
+      findFirst: async () => ({
+        id: "rest_1",
+        isActive: true,
+        isBusy: false,
+        vendorId: "vendor_1",
+      }),
+    },
+    order: {
+      findFirst: async ({ where }) => (where?.status?.in ? { id: "order_active_1" } : null),
+    },
+    vendorBlacklist: {
+      findUnique: async () => null,
+    },
+  };
+
+  const { loaded, cleanup } = loadControllerWithMocks("../src/controllers/order.controller", {
+    "../src/lib/prisma": { prisma },
+    "../src/utils/serialize": { serialize: (value) => value },
+  });
+
+  try {
+    await assert.rejects(
+      () =>
+        loaded.createOrder(
+          {
+            auth: { role: "CUSTOMER", userId: "cust_1" },
+            body: { restaurantId: "rest_1", items: [{ menuItemId: "item_1", quantity: 1 }] },
+          },
+          {},
+        ),
+      (error) => {
+        assert.equal(error.statusCode, 409);
+        assert.equal(error.code, "CUSTOMER_ACTIVE_ORDER_EXISTS");
+        assert.match(error.message, /already have an active order/i);
+        return true;
+      },
+    );
   } finally {
     cleanup();
   }
@@ -293,6 +341,9 @@ test("createOrder requires selections for required single-choice groups", async 
     restaurant: {
       findFirst: async () => ({ id: "rest_1", isActive: true, isBusy: false, vendorId: "vendor_1" }),
     },
+    order: {
+      findFirst: async ({ where }) => (where?.status?.in ? null : null),
+    },
     menuItem: {
       findMany: async () => [
         {
@@ -314,6 +365,9 @@ test("createOrder requires selections for required single-choice groups", async 
           ],
         },
       ],
+    },
+    vendorBlacklist: {
+      findUnique: async () => null,
     },
   };
 
@@ -349,6 +403,13 @@ test("createOrder includes selected option price deltas in totals", async () => 
     restaurant: {
       findFirst: async () => ({ id: "rest_1", isActive: true, isBusy: false, vendorId: "vendor_1" }),
     },
+    order: {
+      findFirst: async ({ where }) => (where?.status?.in ? null : null),
+      create: async ({ data }) => {
+        createdOrderPayload = data;
+        return { id: "order_1", customerId: "cust_1", restaurant: null, rating: null, orderItems: [] };
+      },
+    },
     menuItem: {
       findMany: async () => [
         {
@@ -370,11 +431,8 @@ test("createOrder includes selected option price deltas in totals", async () => 
         },
       ],
     },
-    order: {
-      create: async ({ data }) => {
-        createdOrderPayload = data;
-        return { id: "order_1", customerId: "cust_1", restaurant: null, rating: null, orderItems: [] };
-      },
+    vendorBlacklist: {
+      findUnique: async () => null,
     },
   };
 

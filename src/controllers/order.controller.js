@@ -138,6 +138,28 @@ const createOrder = async (req, res) => {
     });
   }
 
+  const existingActiveOrder = await prisma.order.findFirst({
+    where: {
+      customerId: req.auth.userId,
+      status: {
+        in: [
+          ORDER_STATUSES.ACCEPTED,
+          ORDER_STATUSES.IN_PROGRESS,
+          ORDER_STATUSES.READY,
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (existingActiveOrder) {
+    throw new ApiError(
+      409,
+      "You already have an active order. Complete or cancel it before placing a new one.",
+      { code: "CUSTOMER_ACTIVE_ORDER_EXISTS" },
+    );
+  }
+
   const menuItemIds = [...new Set(items.map((item) => item.menuItemId))];
   const menuItems = await prisma.menuItem.findMany({
     where: {

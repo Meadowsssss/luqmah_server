@@ -140,7 +140,11 @@ test("createOrder sends a vendor push notification", async () => {
         },
       ],
     },
+    vendorBlacklist: {
+      findUnique: async () => null,
+    },
     order: {
+      findFirst: async ({ where }) => (where?.status?.in ? null : null),
       create: async () => ({
         id: "order_1",
         customerId: "cust_1",
