@@ -3,7 +3,12 @@ const { z } = require("zod");
 const { asyncHandler } = require("../utils/async-handler");
 const { validate } = require("../middleware/validate");
 const { requireAuth } = require("../middleware/auth");
-const { changePassword, updateCustomerPhoneNumber } = require("../controllers/user.controller");
+const {
+  changePassword,
+  updateCustomerPhoneNumber,
+  registerPushToken,
+  unregisterPushToken,
+} = require("../controllers/user.controller");
 
 const router = express.Router();
 
@@ -30,6 +35,13 @@ const updatePhoneNumberSchema = z.object({
   }),
 });
 
+const pushTokenSchema = z.object({
+  body: z.object({
+    token: z.string().min(1),
+    platform: z.enum(["android"]),
+  }),
+});
+
 router.patch(
   "/me/password",
   requireAuth,
@@ -42,6 +54,18 @@ router.patch(
   requireAuth,
   validate(updatePhoneNumberSchema),
   asyncHandler(updateCustomerPhoneNumber),
+);
+router.post(
+  "/me/push-tokens",
+  requireAuth,
+  validate(pushTokenSchema),
+  asyncHandler(registerPushToken),
+);
+router.delete(
+  "/me/push-tokens",
+  requireAuth,
+  validate(pushTokenSchema),
+  asyncHandler(unregisterPushToken),
 );
 
 module.exports = router;

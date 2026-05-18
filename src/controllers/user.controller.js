@@ -68,4 +68,41 @@ const updateCustomerPhoneNumber = async (req, res) => {
   res.json({ phoneNumber: user.phoneNumber });
 };
 
-module.exports = { changePassword, updateCustomerPhoneNumber };
+const registerPushToken = async (req, res) => {
+  const { token, platform } = req.body;
+
+  const pushToken = await prisma.pushToken.upsert({
+    where: { token },
+    update: {
+      userId: req.auth.userId,
+      platform,
+    },
+    create: {
+      userId: req.auth.userId,
+      token,
+      platform,
+    },
+  });
+
+  res.status(201).json({ pushToken: { id: pushToken.id, token: pushToken.token, platform: pushToken.platform } });
+};
+
+const unregisterPushToken = async (req, res) => {
+  const { token } = req.body;
+
+  await prisma.pushToken.deleteMany({
+    where: {
+      userId: req.auth.userId,
+      token,
+    },
+  });
+
+  res.json({ message: "Push token removed." });
+};
+
+module.exports = {
+  changePassword,
+  updateCustomerPhoneNumber,
+  registerPushToken,
+  unregisterPushToken,
+};

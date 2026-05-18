@@ -9,6 +9,7 @@ const { USER_ROLES, ORDER_STATUSES } = require("../constants/enums");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
 const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
+const { sendPushToVendor } = require("../lib/push-notifications");
 
 const orderInclude = {
   restaurant: {
@@ -202,6 +203,16 @@ const createOrder = async (req, res) => {
       customerId: req.auth.userId,
       vendorId: restaurant.vendorId,
       restaurantId,
+    });
+    await sendPushToVendor({
+      vendorId: restaurant.vendorId,
+      title: "New order received",
+      body: "A new order is waiting in your queue.",
+      data: {
+        target: "vendor_orders",
+        orderId: order.id,
+        eventType: EVENT_TYPES.ORDER_CREATED,
+      },
     });
   }
   realtime.notifyUser(req.auth.userId, {

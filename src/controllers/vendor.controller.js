@@ -6,6 +6,7 @@ const {
   estimateReadyAt,
   historicalPrepMinutesFromOrders,
 } = require("../utils/order-estimate");
+const { sendPushToUser } = require("../lib/push-notifications");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
 const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
@@ -364,6 +365,34 @@ const updateVendorOrderStatus = async (req, res) => {
     vendorId: req.auth.vendorId,
     restaurantId: updatedOrder.restaurantId,
   });
+
+  if (status === ORDER_STATUSES.IN_PROGRESS) {
+    await sendPushToUser({
+      userId: updatedOrder.customerId,
+      title: "Your order is being prepared",
+      body: "The restaurant has started preparing your order.",
+      data: {
+        target: "customer_orders",
+        orderId: updatedOrder.id,
+        eventType: EVENT_TYPES.ORDER_UPDATED,
+        status: ORDER_STATUSES.IN_PROGRESS,
+      },
+    });
+  }
+
+  if (status === ORDER_STATUSES.READY) {
+    await sendPushToUser({
+      userId: updatedOrder.customerId,
+      title: "Your order is ready",
+      body: "Your order is ready now.",
+      data: {
+        target: "customer_orders",
+        orderId: updatedOrder.id,
+        eventType: EVENT_TYPES.ORDER_UPDATED,
+        status: ORDER_STATUSES.READY,
+      },
+    });
+  }
 
   res.json({ order: serialize(updatedOrder) });
 };
