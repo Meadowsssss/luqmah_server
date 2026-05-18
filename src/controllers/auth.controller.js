@@ -26,22 +26,60 @@ const customerPasswordAuthDisabledError = () =>
     code: "CUSTOMER_FIREBASE_AUTH_REQUIRED",
   });
 
-const register = async (_req, _res) => {
-  throw customerPasswordAuthDisabledError();
+const splitEmailForLogin = (value) => {
+  const email = value?.trim();
+  if (!email) {
+    return null;
+  }
+
+  const atIndex = email.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex == email.length - 1) {
+    return null;
+  }
+
+  return {
+    email,
+    localPart: email.slice(0, atIndex),
+    normalizedDomain: email.slice(atIndex + 1).toLowerCase(),
+  };
 };
 
-const login = async (req, res) => {
-  const email = req.body.email?.trim().toLowerCase();
-  const { password } = req.body;
+const findUserByDomainInsensitiveEmail = async (email) => {
+  const parts = splitEmailForLogin(email);
+  if (!parts) {
+    return null;
+  }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
+  const users = await prisma.user.findMany({
+    where: {
+      email: {
+        startsWith: `${parts.localPart}@`,
+      },
+    },
     include: {
       vendor: {
         select: { id: true },
       },
     },
   });
+
+  return (
+    users.find((user) => {
+      const userParts = splitEmailForLogin(user.email);
+      return userParts?.normalizedDomain === parts.normalizedDomain;
+    }) ?? null
+  );
+};
+
+const register = async (_req, _res) => {
+  throw customerPasswordAuthDisabledError();
+};
+
+const login = async (req, res) => {
+  const email = req.body.email?.trim();
+  const { password } = req.body;
+
+  const user = await findUserByDomainInsensitiveEmail(email);
 
   if (!user || !user.passwordHash) {
     throw new ApiError(401, "Invalid email or password", {

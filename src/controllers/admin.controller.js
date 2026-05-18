@@ -40,15 +40,54 @@ const adminVendorInclude = {
   },
 };
 
-const loginAdmin = async (req, res) => {
-  const { email, password } = req.body;
-  const user = await prisma.user.findUnique({
-    where: { email },
+const splitEmailForLogin = (value) => {
+  const email = value?.trim();
+  if (!email) {
+    return null;
+  }
+
+  const atIndex = email.lastIndexOf("@");
+  if (atIndex <= 0 || atIndex == email.length - 1) {
+    return null;
+  }
+
+  return {
+    email,
+    localPart: email.slice(0, atIndex),
+    normalizedDomain: email.slice(atIndex + 1).toLowerCase(),
+  };
+};
+
+const findUserByDomainInsensitiveEmail = async (email) => {
+  const parts = splitEmailForLogin(email);
+  if (!parts) {
+    return null;
+  }
+
+  const users = await prisma.user.findMany({
+    where: {
+      email: {
+        startsWith: `${parts.localPart}@`,
+      },
+    },
     select: {
       ...adminUserSelect,
       passwordHash: true,
     },
   });
+
+  return (
+    users.find((user) => {
+      const userParts = splitEmailForLogin(user.email);
+      return userParts?.normalizedDomain === parts.normalizedDomain;
+    }) ?? null
+  );
+};
+
+const loginAdmin = async (req, res) => {
+  const email = req.body.email?.trim();
+  const { password } = req.body;
+  const user = await findUserByDomainInsensitiveEmail(email);
 
   if (!user) {
     throw new ApiError(401, "Invalid email or password");
