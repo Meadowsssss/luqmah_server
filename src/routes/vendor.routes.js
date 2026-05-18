@@ -171,10 +171,16 @@ router.post(
 );
 router.get("/restaurants/me", asyncHandler(getVendorRestaurants));
 router.patch(
+  "/restaurants/busy",
+  validate(restaurantBusyUpdateSchema),
+  asyncHandler(updateVendorRestaurantBusyState),
+);
+router.patch(
   "/restaurants/:id",
   validate(vendorRestaurantUpdateSchema),
   asyncHandler(updateVendorRestaurant),
 );
+<<<<<<< Updated upstream
 router.patch(
   "/restaurants/busy",
   validate(restaurantBusyUpdateSchema),
@@ -191,6 +197,8 @@ router.delete(
   validate(vendorBlacklistDeleteSchema),
   asyncHandler(deleteVendorBlacklistEntry),
 );
+=======
+>>>>>>> Stashed changes
 router.post(
   "/menu-categories",
   validate(menuCategoryCreateSchema),
