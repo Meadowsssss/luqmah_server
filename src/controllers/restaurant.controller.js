@@ -4,6 +4,12 @@ const { ApiError } = require("../utils/api-error");
 const { historicalPrepMinutesFromOrders } = require("../utils/order-estimate");
 
 const restaurantSummaryInclude = {
+  menuCategories: {
+    orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+    select: {
+      title: true,
+    },
+  },
   vendor: {
     select: {
       id: true,
