@@ -2,6 +2,11 @@ const bcrypt = require("bcryptjs");
 const { prisma } = require("../lib/prisma");
 const { USER_ROLES } = require("../constants/enums");
 const { ApiError } = require("../utils/api-error");
+const {
+  hasBlockedDisplayNameTerm,
+  isLettersAndSpacesName,
+  normalizeDisplayName,
+} = require("../utils/profile-validation");
 
 const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -68,6 +73,44 @@ const updateCustomerPhoneNumber = async (req, res) => {
   res.json({ phoneNumber: user.phoneNumber });
 };
 
+const toDisplayName = (value) =>
+  normalizeDisplayName(value)
+    .split(" ")
+    .map((part) =>
+      part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+    )
+    .join(" ");
+
+const updateCustomerName = async (req, res) => {
+  if (req.auth.role !== USER_ROLES.CUSTOMER) {
+    throw new ApiError(403, "Only customers can update their name.", {
+      code: "CUSTOMER_ACCESS_REQUIRED",
+    });
+  }
+
+  const name = req.body.name.trim();
+
+  if (!isLettersAndSpacesName(name)) {
+    throw new ApiError(400, "Use letters and spaces only.", {
+      code: "INVALID_CUSTOMER_NAME_FORMAT",
+    });
+  }
+
+  if (hasBlockedDisplayNameTerm(name)) {
+    throw new ApiError(400, "Choose a different display name.", {
+      code: "INAPPROPRIATE_CUSTOMER_NAME",
+    });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.auth.userId },
+    data: { name: toDisplayName(name) },
+    select: { name: true },
+  });
+
+  res.json({ name: user.name });
+};
+
 const registerPushToken = async (req, res) => {
   const { token, platform } = req.body;
 
@@ -102,6 +145,7 @@ const unregisterPushToken = async (req, res) => {
 
 module.exports = {
   changePassword,
+  updateCustomerName,
   updateCustomerPhoneNumber,
   registerPushToken,
   unregisterPushToken,

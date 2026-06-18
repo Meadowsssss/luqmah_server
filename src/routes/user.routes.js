@@ -5,6 +5,7 @@ const { validate } = require("../middleware/validate");
 const { requireAuth } = require("../middleware/auth");
 const {
   changePassword,
+  updateCustomerName,
   updateCustomerPhoneNumber,
   registerPushToken,
   unregisterPushToken,
@@ -35,6 +36,17 @@ const updatePhoneNumberSchema = z.object({
   }),
 });
 
+const updateNameSchema = z.object({
+  body: z.object({
+    name: z
+      .string()
+      .trim()
+      .min(2, "Enter your full name.")
+      .max(80, "Use between 2 and 80 characters.")
+      .regex(/^[A-Za-z\u0621-\u064A\s]+$/u, "Use letters and spaces only"),
+  }),
+});
+
 const pushTokenSchema = z.object({
   body: z.object({
     token: z.string().min(1),
@@ -47,6 +59,13 @@ router.patch(
   requireAuth,
   validate(changePasswordSchema),
   asyncHandler(changePassword),
+);
+
+router.patch(
+  "/me/name",
+  requireAuth,
+  validate(updateNameSchema),
+  asyncHandler(updateCustomerName),
 );
 
 router.patch(

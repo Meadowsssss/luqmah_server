@@ -5,6 +5,11 @@ const { USER_ROLES } = require("../constants/enums");
 const { signToken } = require("../utils/jwt");
 const { serialize } = require("../utils/serialize");
 const { ApiError } = require("../utils/api-error");
+const {
+  hasBlockedDisplayNameTerm,
+  isLettersAndSpacesName,
+  normalizeDisplayName,
+} = require("../utils/profile-validation");
 
 const authUserSelect = {
   id: true,
@@ -116,8 +121,32 @@ const login = async (req, res) => {
   });
 };
 
+const validateCustomerProfileInput = ({ name, phoneNumber }) => {
+  if (name != null) {
+    if (!isLettersAndSpacesName(name)) {
+      throw new ApiError(400, "Use letters and spaces only.", {
+        code: "INVALID_CUSTOMER_NAME_FORMAT",
+      });
+    }
+
+    if (hasBlockedDisplayNameTerm(name)) {
+      throw new ApiError(400, "Choose a different display name.", {
+        code: "INAPPROPRIATE_CUSTOMER_NAME",
+      });
+    }
+  }
+
+  if (phoneNumber != null && !/^[0-9+\- ]+$/.test(phoneNumber)) {
+    throw new ApiError(400, "Use digits, spaces, +, or - only.", {
+      code: "INVALID_CUSTOMER_PHONE_NUMBER",
+    });
+  }
+};
+
 const syncCustomerWithFirebase = async (req, res) => {
   const { idToken } = req.body;
+  const requestedName = req.body.name?.trim();
+  const requestedPhoneNumber = req.body.phoneNumber?.trim();
   const firebaseAuth = getFirebaseAuth();
 
   if (!firebaseAuth) {
@@ -151,10 +180,14 @@ const syncCustomerWithFirebase = async (req, res) => {
   }
 
   const firebaseUid = decodedToken.uid;
-  const name =
-    decodedToken.name?.trim() ||
-    email.split("@").first ||
-    "Luqmah Customer";
+  const fallbackName =
+    decodedToken.name?.trim() || email.split("@").first || "Luqmah Customer";
+  const resolvedName = requestedName || fallbackName;
+
+  validateCustomerProfileInput({
+    name: resolvedName,
+    phoneNumber: requestedPhoneNumber,
+  });
 
   const [linkedUser, emailUser] = await Promise.all([
     prisma.user.findUnique({
@@ -204,7 +237,15 @@ const syncCustomerWithFirebase = async (req, res) => {
         data: {
           email,
           firebaseUid,
-          name,
+          name: normalizeDisplayName(resolvedName)
+            .split(" ")
+            .map((part) =>
+              part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+            )
+            .join(" "),
+          ...(requestedPhoneNumber
+            ? { phoneNumber: requestedPhoneNumber }
+            : {}),
           role: USER_ROLES.CUSTOMER,
         },
         select: authUserSelect,
@@ -213,7 +254,13 @@ const syncCustomerWithFirebase = async (req, res) => {
         data: {
           email,
           firebaseUid,
-          name,
+          name: normalizeDisplayName(resolvedName)
+            .split(" ")
+            .map((part) =>
+              part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+            )
+            .join(" "),
+          phoneNumber: requestedPhoneNumber ?? null,
           role: USER_ROLES.CUSTOMER,
           passwordHash: null,
         },

@@ -4,6 +4,9 @@ const { asyncHandler } = require("../utils/async-handler");
 const { validate } = require("../middleware/validate");
 const { requireAuth } = require("../middleware/auth");
 const {
+  isLettersAndSpacesName,
+} = require("../utils/profile-validation");
+const {
   register,
   login,
   syncCustomerWithFirebase,
@@ -32,6 +35,28 @@ const loginSchema = z.object({
 const firebaseCustomerSyncSchema = z.object({
   body: z.object({
     idToken: z.string().min(1),
+    name: z
+      .string()
+      .trim()
+      .min(2)
+      .max(80)
+      .regex(/^[A-Za-z\u0621-\u064A\s]+$/u, "Use letters and spaces only")
+      .optional(),
+    phoneNumber: z
+      .string()
+      .trim()
+      .min(1, "Phone number is required")
+      .max(30, "Phone number is too long")
+      .regex(/^[0-9+\- ]+$/, "Use digits, spaces, +, or - only")
+      .optional(),
+  }).superRefine((data, ctx) => {
+    if (data.name && !isLettersAndSpacesName(data.name)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["name"],
+        message: "Use letters and spaces only",
+      });
+    }
   }),
 });
 
