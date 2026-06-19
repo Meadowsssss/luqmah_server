@@ -182,12 +182,6 @@ const syncCustomerWithFirebase = async (req, res) => {
   const firebaseUid = decodedToken.uid;
   const fallbackName =
     decodedToken.name?.trim() || email.split("@").first || "Luqmah Customer";
-  const resolvedName = requestedName || fallbackName;
-
-  validateCustomerProfileInput({
-    name: resolvedName,
-    phoneNumber: requestedPhoneNumber,
-  });
 
   const [linkedUser, emailUser] = await Promise.all([
     prisma.user.findUnique({
@@ -231,6 +225,14 @@ const syncCustomerWithFirebase = async (req, res) => {
   }
 
   const existingCustomer = linkedUser || emailUser;
+  const resolvedName =
+    requestedName || existingCustomer?.name?.trim() || fallbackName;
+
+  validateCustomerProfileInput({
+    name: resolvedName,
+    phoneNumber: requestedPhoneNumber,
+  });
+
   const user = existingCustomer
     ? await prisma.user.update({
         where: { id: existingCustomer.id },
