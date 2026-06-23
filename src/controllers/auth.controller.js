@@ -181,7 +181,7 @@ const syncCustomerWithFirebase = async (req, res) => {
 
   const firebaseUid = decodedToken.uid;
   const fallbackName =
-    decodedToken.name?.trim() || email.split("@").first || "Luqmah Customer";
+    decodedToken.name?.trim() || email.split("@")[0] || "Luqmah Customer";
 
   const [linkedUser, emailUser] = await Promise.all([
     prisma.user.findUnique({
@@ -242,7 +242,7 @@ const syncCustomerWithFirebase = async (req, res) => {
           name: normalizeDisplayName(resolvedName)
             .split(" ")
             .map((part) =>
-              part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+              part ? part[0].toUpperCase() + part.slice(1) : part,
             )
             .join(" "),
           ...(requestedPhoneNumber
@@ -259,7 +259,7 @@ const syncCustomerWithFirebase = async (req, res) => {
           name: normalizeDisplayName(resolvedName)
             .split(" ")
             .map((part) =>
-              part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+              part ? part[0].toUpperCase() + part.slice(1) : part,
             )
             .join(" "),
           phoneNumber: requestedPhoneNumber ?? null,

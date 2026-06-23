@@ -12,6 +12,14 @@ const { EVENT_TYPES, realtime } = require("../realtime/socket-events");
 const { sendPushToVendor } = require("../lib/push-notifications");
 
 const orderInclude = {
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+    },
+  },
   restaurant: {
     select: {
       id: true,

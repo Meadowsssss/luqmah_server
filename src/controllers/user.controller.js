@@ -77,7 +77,7 @@ const toDisplayName = (value) =>
   normalizeDisplayName(value)
     .split(" ")
     .map((part) =>
-      part.isEmpty ? part : part[0].toUpperCase() + part.slice(1),
+      part ? part[0].toUpperCase() + part.slice(1) : part,
     )
     .join(" ");
 
